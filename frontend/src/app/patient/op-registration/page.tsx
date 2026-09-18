@@ -19,6 +19,19 @@ export default function PatientOPRegistrationPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [registeredResult, setRegisteredResult] = useState<any>(null);
+  const [departments, setDepartments] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    const loadDepartments = async () => {
+      try {
+        const res = await api.getDepartments();
+        if (res.success && Array.isArray(res.data)) {
+          setDepartments(res.data);
+        }
+      } catch (e) {}
+    };
+    loadDepartments();
+  }, []);
 
   // Form State matching the 6 government hospital sections
   const [formData, setFormData] = useState({
@@ -278,7 +291,7 @@ export default function PatientOPRegistrationPage() {
                     required
                     value={formData.fullName}
                     onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    placeholder="e.g. Ramesh Kumar"
+                    placeholder="Full Name as per ID"
                     className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none"
                   />
                 </div>
@@ -522,12 +535,36 @@ export default function PatientOPRegistrationPage() {
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none bg-white font-bold"
                   >
-                    <option value="General Medicine">General Medicine (பொது மருத்துவம் / सामान्य चिकित्सा)</option>
-                    <option value="Cardiology">Cardiology (இதயவியல் / हृदय रोग)</option>
-                    <option value="Orthopedics">Orthopedics (எலும்பியல் / अस्थि रोग)</option>
-                    <option value="Pediatrics">Pediatrics (குழந்தைகள் நலம் / बाल रोग)</option>
-                    <option value="AYUSH / Ayurveda">AYUSH (ஆயுஷ் / आयुष)</option>
+                    {departments.length > 0 ? (
+                      departments.map((dept) => (
+                        <option key={dept._id} value={dept.name}>
+                          {dept.name} ({dept.clinicalMode === 'AYUSH' ? '🌿 AYUSH Clinical Mode' : '🩺 Medical OPD Mode'})
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="General Medicine">General Medicine (🩺 Medical OPD Mode)</option>
+                        <option value="Cardiology">Cardiology (🩺 Medical OPD Mode)</option>
+                        <option value="Orthopedics">Orthopedics (🩺 Medical OPD Mode)</option>
+                        <option value="Pediatrics">Pediatrics (🩺 Medical OPD Mode)</option>
+                        <option value="Ayurveda">Ayurveda (🌿 AYUSH Clinical Mode)</option>
+                        <option value="Siddha">Siddha (🌿 AYUSH Clinical Mode)</option>
+                        <option value="Unani">Unani (🌿 AYUSH Clinical Mode)</option>
+                      </>
+                    )}
                   </select>
+                  <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2 text-xs">
+                    <span className="font-bold text-slate-700">Clinical Workflow:</span>
+                    <span className={`px-2.5 py-0.5 rounded-full font-black text-[11px] uppercase ${
+                      departments.find(d => d.name === formData.department)?.clinicalMode === 'AYUSH' || /ayush|ayurveda|siddha|unani/i.test(formData.department)
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-blue-100 text-blue-800 border border-blue-300'
+                    }`}>
+                      {departments.find(d => d.name === formData.department)?.clinicalMode === 'AYUSH' || /ayush|ayurveda|siddha|unani/i.test(formData.department)
+                        ? '🌿 AYUSH Clinical Protocol'
+                        : '🩺 Modern Medical Protocol'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

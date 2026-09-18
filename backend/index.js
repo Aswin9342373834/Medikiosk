@@ -19,6 +19,9 @@ const prescriptionRoutes = require('./routes/prescriptions');
 const consultationRoutes = require('./routes/consultations');
 const notificationRoutes = require('./routes/notifications');
 const aiRoutes = require('./routes/ai');
+const departmentRoutes = require('./routes/departments');
+const opdRoutes = require('./routes/opd');
+const consentRoutes = require('./routes/consent');
 
 const app = express();
 
@@ -126,6 +129,9 @@ app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/consultations', consultationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/opd', opdRoutes);
+app.use('/api/consent', consentRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

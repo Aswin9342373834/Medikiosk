@@ -3,6 +3,7 @@ const router = express.Router();
 const Consultation = require('../models/Consultation');
 const Patient = require('../models/Patient');
 const Notification = require('../models/Notification');
+const OpdVisit = require('../models/OpdVisit');
 const { authenticateUser, requireRole, createAuditLog } = require('../middleware/auth');
 
 // Start or Update Consultation
@@ -26,8 +27,13 @@ router.post('/start', authenticateUser, requireRole(['DOCTOR']), async (req, res
       await consultation.save();
     }
 
-    // Update patient status
+    // Update patient status & OpdVisit state
     await Patient.findByIdAndUpdate(patientId, { currentStatus: 'In Consultation' });
+    await OpdVisit.findOneAndUpdate(
+      { patientId, status: { $in: ['REGISTERED', 'WAITING', 'READY_FOR_DOCTOR', 'HISTORY_COMPLETED'] } },
+      { status: 'IN_CONSULTATION', doctorId: req.user.id, consultationStartedAt: new Date() },
+      { new: true }
+    );
     await createAuditLog(req.user.id, 'DOCTOR', 'CONSULTATION_STARTED', 'Consultation', consultation._id);
 
     const io = req.app.get('io');
@@ -68,8 +74,13 @@ router.post('/complete', authenticateUser, requireRole(['DOCTOR']), async (req, 
     consultation.completedAt = new Date();
     await consultation.save();
 
-    // Update patient status to Completed
+    // Update patient status to Completed and OpdVisit to COMPLETED
     const patient = await Patient.findByIdAndUpdate(patientId, { currentStatus: 'Completed' }, { new: true });
+    await OpdVisit.findOneAndUpdate(
+      { patientId, status: { $in: ['IN_CONSULTATION', 'READY_FOR_DOCTOR', 'WAITING'] } },
+      { status: 'COMPLETED', completedAt: new Date() },
+      { new: true }
+    );
     await createAuditLog(req.user.id, 'DOCTOR', 'CONSULTATION_COMPLETED', 'Consultation', consultation._id);
 
     // Notify patient

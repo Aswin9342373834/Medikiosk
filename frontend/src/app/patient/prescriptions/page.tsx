@@ -22,25 +22,25 @@ export default function PatientPrescriptionsPage() {
       let prof = null;
       try {
         const profRes = await api.getPatientProfile();
-        if (profRes.success) {
+        if (profRes.success && profRes.data) {
           prof = profRes.data;
           setPatient(prof);
+        } else {
+          setPatient(null);
         }
       } catch (e) {
-        prof = {
-          name: 'Ramesh Kumar',
-          abhaId: 'ABHA-9928-1102',
-          gender: 'Male',
-          age: 52
-        };
-        setPatient(prof);
+        setPatient(null);
       }
 
       if (prof?._id) {
         const res = await api.getPatientPrescriptions(prof._id);
         if (res.success && Array.isArray(res.data)) {
           setPrescriptions(res.data);
+        } else {
+          setPrescriptions([]);
         }
+      } else {
+        setPrescriptions([]);
       }
     } catch (err: any) {
       console.warn('Prescriptions fetch error:', err.message);

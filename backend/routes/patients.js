@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const Patient = require('../models/Patient');
 const User = require('../models/User');
+const Department = require('../models/Department');
+const OpdVisit = require('../models/OpdVisit');
+const ClinicalHistory = require('../models/ClinicalHistory');
+const Prescription = require('../models/Prescription');
+const Consultation = require('../models/Consultation');
+const { createOpConsultFhirBundle } = require('../services/fhirService');
 const { authenticateUser, requireRole } = require('../middleware/auth');
 
 // Get profile of logged in patient
@@ -56,6 +62,45 @@ router.get('/:id', authenticateUser, async (req, res) => {
     }
 
     res.json({ success: true, data: patient });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Export Patient Record as FHIR R4 Document Bundle
+router.get('/:id/fhir-bundle', authenticateUser, async (req, res) => {
+  try {
+    const patient = await Patient.findById(req.params.id);
+    if (!patient) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    if (req.user.role === 'PATIENT' && patient.userId.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Unauthorized: You cannot access another patient profile' });
+    }
+
+    const opdVisit = await OpdVisit.findOne({ patientId: patient._id }).sort({ createdAt: -1 });
+    const clinicalHistory = await ClinicalHistory.findOne({ patientId: patient._id }).sort({ createdAt: -1 });
+    const consultation = await Consultation.findOne({ patientId: patient._id }).sort({ createdAt: -1 });
+    const prescriptions = await Prescription.find({ patientId: patient._id }).sort({ date: -1 });
+
+    let doctor = null;
+    if (consultation?.doctorId) {
+      doctor = await User.findById(consultation.doctorId).select('name email');
+    }
+
+    const bundle = createOpConsultFhirBundle({
+      patient,
+      opdVisit,
+      clinicalHistory,
+      consultation,
+      prescriptions,
+      doctor
+    });
+
+    res.json({
+      success: true,
+      message: 'FHIR R4 OPConsultRecord Bundle generated successfully',
+      data: bundle
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -179,16 +224,42 @@ router.post('/op-register', async (req, res) => {
       });
     }
 
+    // Authoritative Department & clinicalMode lookup
+    let deptDoc = await Department.findOne({ name: new RegExp('^' + patientDept.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
+    if (!deptDoc) {
+      // Check if code or partial matches
+      deptDoc = await Department.findOne({ active: true });
+    }
+    const authoritativeMode = deptDoc?.clinicalMode || (/ayush|ayurveda|siddha|unani/i.test(patientDept) ? 'AYUSH' : 'MEDICAL');
+
+    // Create or update active OpdVisit
+    const opdVisit = await OpdVisit.create({
+      patientId: patient._id,
+      userId: targetUserId,
+      departmentId: deptDoc ? deptDoc._id : patient._id,
+      departmentName: patient.department,
+      clinicalMode: authoritativeMode,
+      preferredLanguage: patient.preferredLanguage || 'English',
+      tokenNumber: patient.tokenNumber,
+      opNumber: patient.opNumber,
+      status: 'WAITING',
+      visitType: visitType || 'New',
+      opdType: opdType || (authoritativeMode === 'AYUSH' ? 'AYUSH' : 'General OPD'),
+      hospital: patient.hospital
+    });
+
     // Socket notification
     const io = req.app.get('io');
     if (io) {
       io.emit('new-patient', {
         id: patient._id,
+        visitId: opdVisit._id,
         patientId: patient._id,
         patientName: patient.name,
         abhaId: patient.abhaId,
         complaint: patient.basicHealth.reasonForVisit,
         department: patient.department,
+        clinicalMode: authoritativeMode,
         token: patient.tokenNumber,
         status: patient.currentStatus,
         priority: 'NORMAL',
@@ -201,6 +272,8 @@ router.post('/op-register', async (req, res) => {
       message: 'Government Hospital OP Registration Completed Successfully',
       data: {
         patientId: patient._id,
+        visitId: opdVisit._id,
+        clinicalMode: authoritativeMode,
         opNumber: patient.opNumber,
         tokenNumber: patient.tokenNumber,
         department: patient.department,

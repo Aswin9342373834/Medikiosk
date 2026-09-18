@@ -9,7 +9,7 @@ import {
   HeartPulse, FileText, Pill, Clock, Bell, User, CheckCircle2, 
   ShieldCheck, AlertCircle, Sparkles, Calendar, Activity, Lock,
   Building2, ArrowRight, Printer, RefreshCw, Thermometer, Weight,
-  BadgeAlert, Phone, MapPin, Check
+  BadgeAlert, Phone, MapPin, Check, Download
 } from 'lucide-react';
 
 import { useTranslation } from '../../../contexts/LanguageContext';
@@ -36,6 +36,29 @@ export default function PatientRecordsPage() {
     | 'profile';
 
   const [activeTab, setActiveTab] = useState<ActiveSection>('overview');
+  const [activeVisit, setActiveVisit] = useState<any>(null);
+  const [exportingFhir, setExportingFhir] = useState(false);
+
+  const handleExportFhir = async () => {
+    if (!patient?._id) return;
+    setExportingFhir(true);
+    try {
+      const res = await api.getPatientFhirBundle(patient._id);
+      if (res.success && res.data) {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `fhir_r4_opconsult_${patient.opNumber || patient._id}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+      }
+    } catch (err: any) {
+      alert('Failed to export FHIR bundle: ' + err.message);
+    } finally {
+      setExportingFhir(false);
+    }
+  };
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -44,65 +67,26 @@ export default function PatientRecordsPage() {
       let prof = null;
       try {
         const profRes = await api.getPatientProfile();
-        prof = profRes.data;
-        setPatient(prof);
+        if (profRes.success && profRes.data) {
+          prof = profRes.data;
+          setPatient(prof);
+        } else {
+          setPatient(null);
+        }
       } catch (e) {
-        // Seeded fallback profile for unauthenticated preview
-        prof = {
-          name: 'Ramesh Kumar',
-          abhaId: 'ABHA-9928-1102',
-          uhid: 'UHID-882104',
-          gender: 'Male',
-          age: 52,
-          dateOfBirth: '1974-06-15',
-          bloodGroup: 'B+',
-          contactNumber: '+91 98765 43210',
-          currentStatus: 'Waiting for Doctor',
-          tokenNumber: 'TKN-104',
-          opNumber: 'OPD-2026-918231',
-          department: 'General Medicine',
-          hospital: 'All India Institute of Medical Sciences (AIIMS)',
-          addressDetails: {
-            address: '42, Block C, Main Road',
-            villageArea: 'Ansari Nagar',
-            district: 'South Delhi',
-            state: 'Delhi',
-            pincode: '110029'
-          },
-          emergencyContact: {
-            name: 'Sunita Devi',
-            relationship: 'Spouse',
-            phone: '+91 98111 22334'
-          },
-          governmentScheme: { 
-            schemeName: 'Ayushman Bharat (PM-JAY)', 
-            applicationStatus: 'Enrolled' 
-          },
-          vitals: {
-            bp: '128/82 mmHg',
-            pulse: '74 bpm',
-            temp: '98.6 F',
-            spo2: '99%',
-            weight: '68 kg',
-            height: '172 cm'
-          },
-          admissions: [
-            {
-              admissionDate: '2025-11-10',
-              dischargeDate: '2025-11-14',
-              ward: 'General Medical Ward 3',
-              bed: 'Bed 12-A',
-              reason: 'Community Acquired Pneumonia',
-              status: 'Discharged'
-            }
-          ],
-          medicationReminders: [
-            { medicine: 'Atorvastatin 20mg', time: '09:00 PM', dosage: '1 tablet with water', active: true },
-            { medicine: 'Metformin 500mg', time: '08:30 AM', dosage: '1 tablet after breakfast', active: true },
-            { medicine: 'Telmisartan 40mg', time: '08:00 AM', dosage: '1 tablet before food', active: true }
-          ]
-        };
-        setPatient(prof);
+        setPatient(null);
+      }
+
+      // Fetch active OPD visit
+      try {
+        const visitRes = await api.getActiveOpdVisit();
+        if (visitRes.success && visitRes.data) {
+          setActiveVisit(visitRes.data);
+        } else {
+          setActiveVisit(null);
+        }
+      } catch (e) {
+        setActiveVisit(null);
       }
 
       // 2. Get Released Documents ONLY (Privacy-enforced)
@@ -110,8 +94,12 @@ export default function PatientRecordsPage() {
         const docRes = await api.getMyDocuments();
         if (docRes.success && Array.isArray(docRes.data)) {
           setDocuments(docRes.data);
+        } else {
+          setDocuments([]);
         }
-      } catch (e) {}
+      } catch (e) {
+        setDocuments([]);
+      }
 
       // 3. Get Prescriptions & History
       if (prof?._id) {
@@ -177,13 +165,17 @@ export default function PatientRecordsPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-slate-900">{patient?.name || 'Ramesh Kumar'}</h1>
-                <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-2.5 py-0.5 rounded-full">
-                  ABHA Linked
-                </span>
+                <h1 className="text-2xl font-black text-slate-900">
+                  {patient?.name || (loading ? t('common.loading') : 'Guest Patient')}
+                </h1>
+                {patient && (
+                  <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-2.5 py-0.5 rounded-full">
+                    ABHA Linked
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                ABHA ID: <span className="font-mono font-bold text-[#1e40af]">{patient?.abhaId || 'ABHA-9928-1102'}</span> • {patient?.gender || 'Male'} • Age: {patient?.age || 52} • Blood Group: {patient?.bloodGroup || 'B+'}
+                ABHA ID: <span className="font-mono font-bold text-[#1e40af]">{patient?.abhaId || (patient ? 'Verified' : 'Not Linked')}</span> • {patient?.gender || 'N/A'} • Age: {patient?.age || 'N/A'} • Blood Group: {patient?.bloodGroup || 'N/A'}
               </p>
             </div>
           </div>
@@ -191,13 +183,23 @@ export default function PatientRecordsPage() {
           <div className="flex items-center gap-3">
             <div className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-xl text-right">
               <span className="text-[10px] text-slate-500 font-black uppercase block">OP Registration No.</span>
-              <span className="text-sm font-mono font-black text-[#1e40af]">{patient?.opNumber || 'OPD-2026-88192'}</span>
+              <span className="text-sm font-mono font-black text-[#1e40af]">{activeVisit?.opNumber || patient?.opNumber || 'No Active OP'}</span>
             </div>
 
             <div className="px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-right">
               <span className="text-[10px] text-slate-500 font-black uppercase block">Current Token</span>
-              <span className="text-sm font-black text-emerald-700">{patient?.tokenNumber || 'TKN-104'}</span>
+              <span className="text-sm font-black text-emerald-700">{activeVisit?.tokenNumber || patient?.tokenNumber || 'No Token'}</span>
             </div>
+
+            <button
+              onClick={handleExportFhir}
+              disabled={exportingFhir || !patient}
+              className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 font-black rounded-xl text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50 shadow-sm"
+              title="Download NRCES / ABDM compliant FHIR R4 Outpatient Consultation Record"
+            >
+              <Download className="w-4 h-4 text-indigo-600" />
+              {exportingFhir ? 'Exporting...' : 'FHIR R4 JSON'}
+            </button>
           </div>
         </div>
 

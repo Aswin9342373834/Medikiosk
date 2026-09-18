@@ -33,6 +33,7 @@ export default function PatientDashboardPage() {
   const { t, language } = useTranslation();
   const [activeTab, setActiveTab] = useState<SidebarTab>('dashboard');
   const [patient, setPatient] = useState<any>(null);
+  const [activeVisit, setActiveVisit] = useState<any>(null);
   const [history, setHistory] = useState<any>(null);
   const [documents, setDocuments] = useState<any[]>([]);
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -44,80 +45,45 @@ export default function PatientDashboardPage() {
       let prof = null;
       try {
         const profRes = await api.getPatientProfile();
-        prof = profRes.data;
-        setPatient(prof);
+        if (profRes.success && profRes.data) {
+          prof = profRes.data;
+          setPatient(prof);
+        } else {
+          setPatient(null);
+        }
       } catch (e) {
-        // Seeded fallback profile for preview/unauthenticated state
-        prof = {
-          name: 'Ramesh Kumar',
-          abhaId: 'ABHA-9928-1102',
-          uhid: 'UHID-882104',
-          gender: 'Male',
-          age: 52,
-          bloodGroup: 'B+',
-          contactNumber: '+91 98765 43210',
-          currentStatus: 'Waiting for Doctor',
-          tokenNumber: 'TKN-104',
-          opNumber: 'OPD-2026-918231',
-          department: 'General Medicine',
-          hospital: 'All India Institute of Medical Sciences (AIIMS)',
-          hasActiveVisit: true,
-          addressDetails: {
-            address: '42, Block C, Main Road',
-            villageArea: 'Ansari Nagar',
-            district: 'South Delhi',
-            state: 'Delhi',
-            pincode: '110029'
-          },
-          emergencyContact: {
-            name: 'Sunita Devi',
-            relationship: 'Spouse',
-            phone: '+91 98111 22334'
-          },
-          governmentScheme: { 
-            schemeName: 'Ayushman Bharat (PM-JAY)', 
-            applicationStatus: 'Enrolled' 
-          },
-          vitals: {
-            bp: '128/82 mmHg',
-            pulse: '74 bpm',
-            temp: '98.6 F',
-            spo2: '99%',
-            weight: '68 kg',
-            height: '172 cm'
-          },
-          admissions: [
-            {
-              admissionDate: '2025-11-10',
-              dischargeDate: '2025-11-14',
-              ward: 'General Medical Ward 3',
-              bed: 'Bed 12-A',
-              reason: 'Community Acquired Pneumonia',
-              status: 'Discharged'
-            }
-          ],
-          medicationReminders: [
-            { medicine: 'Atorvastatin 20mg', time: '09:00 PM', dosage: '1 tablet with water', active: true },
-            { medicine: 'Metformin 500mg', time: '08:30 AM', dosage: '1 tablet after breakfast', active: true },
-            { medicine: 'Telmisartan 40mg', time: '08:00 AM', dosage: '1 tablet before food', active: true }
-          ]
-        };
-        setPatient(prof);
+        setPatient(null);
       }
 
-      // 2. Fetch Released Documents
+      // Fetch Active OPD Visit
+      try {
+        const visitRes = await api.getActiveOpdVisit();
+        if (visitRes.success && visitRes.data) {
+          setActiveVisit(visitRes.data);
+        } else {
+          setActiveVisit(null);
+        }
+      } catch (e) {
+        setActiveVisit(null);
+      }
+
+      // Fetch Released Documents
       try {
         const docRes = await api.getMyDocuments();
         if (docRes.success && Array.isArray(docRes.data)) {
           setDocuments(docRes.data);
+        } else {
+          setDocuments([]);
         }
-      } catch (e) {}
+      } catch (e) {
+        setDocuments([]);
+      }
 
-      // 3. Fetch Prescriptions & History
+      // Fetch Prescriptions & History
       if (prof?._id) {
         try {
           const rxRes = await api.getPatientPrescriptions(prof._id);
-          if (rxRes.success) setPrescriptions(rxRes.data);
+          if (rxRes.success && Array.isArray(rxRes.data)) setPrescriptions(rxRes.data);
         } catch (e) {}
 
         try {
@@ -138,18 +104,19 @@ export default function PatientDashboardPage() {
     const socket = getSocket();
     socket.on('report-released', () => fetchPatientData());
     socket.on('consultation-completed', () => fetchPatientData());
+    socket.on('opd-visit-updated', () => fetchPatientData());
+    socket.on('opd-visit-created', () => fetchPatientData());
 
     return () => {
       socket.off('report-released');
       socket.off('consultation-completed');
+      socket.off('opd-visit-updated');
+      socket.off('opd-visit-created');
     };
   }, []);
 
   // Determine if patient has an active ongoing OP visit
-  const hasActiveOpVisit = 
-    patient?.currentStatus && 
-    patient.currentStatus !== 'Completed' && 
-    (patient.tokenNumber || patient.opNumber);
+  const hasActiveOpVisit = !!(activeVisit && activeVisit.status !== 'COMPLETED');
 
   const sidebarItems = [
     { id: 'dashboard', label: t('navigation.dashboard'), icon: LayoutDashboard },
@@ -184,10 +151,10 @@ export default function PatientDashboardPage() {
               </div>
               <div className="truncate">
                 <h4 className="text-xs font-black text-slate-900 truncate">
-                  {patient?.name || 'Ramesh Kumar'}
+                  {patient?.name || (loading ? t('common.loading') : 'Guest Patient')}
                 </h4>
                 <span className="text-[10px] font-mono text-[#1e40af] font-bold block truncate">
-                  {patient?.abhaId || 'ABHA-9928-1102'}
+                  {patient?.abhaId || patient?.uhid || (loading ? '...' : 'Unregistered')}
                 </span>
               </div>
             </div>
@@ -242,21 +209,31 @@ export default function PatientDashboardPage() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-2.5 py-0.5 rounded-full">
-                      ABDM Verified
+                      {patient ? 'ABDM Verified' : 'OPD Portal'}
                     </span>
-                    <span className="text-xs text-slate-400 font-bold">
-                      UHID: {patient?.uhid || 'UHID-882104'}
-                    </span>
+                    {patient?.uhid && (
+                      <span className="text-xs text-slate-400 font-bold">
+                        UHID: {patient.uhid}
+                      </span>
+                    )}
                   </div>
                   <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                    {t('patient.welcome')}, {patient?.name || 'Ramesh Kumar'}
+                    {patient ? `${t('patient.welcome')}, ${patient.name}` : t('patient.title')}
                   </h2>
                   <p className="text-xs text-slate-500 font-medium">
-                    {patient?.hospital || 'Government Medical College & Hospital'} • {t('patient.title')}
+                    {patient?.hospital || 'Government Medical College & Hospital'} • {patient?.phone || 'Outpatient Portal'}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {!patient && !loading && (
+                    <Link
+                      href="/login"
+                      className="px-4 py-2 bg-[#1e40af] hover:bg-blue-800 text-white font-black text-xs rounded-xl transition shadow"
+                    >
+                      {t('authentication.login')}
+                    </Link>
+                  )}
                   <button
                     onClick={fetchPatientData}
                     className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition text-xs flex items-center gap-1"
@@ -272,20 +249,20 @@ export default function PatientDashboardPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-5 rounded-2xl border-2 border-slate-200 shadow-sm space-y-1">
                   <span className="text-[11px] font-bold text-slate-400 uppercase block">{t('common.status')}</span>
-                  <div className="text-lg font-black text-[#1e40af]">{patient?.currentStatus || 'Waiting for Doctor'}</div>
-                  <span className="text-[10px] text-slate-500 block">Room 104</span>
+                  <div className="text-lg font-black text-[#1e40af]">{activeVisit?.status || (patient ? 'Active Patient' : 'Ready')}</div>
+                  <span className="text-[10px] text-slate-500 block">{activeVisit?.department?.roomNumber || 'Room 104'}</span>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border-2 border-slate-200 shadow-sm space-y-1">
                   <span className="text-[11px] font-bold text-slate-400 uppercase block">{t('navigation.prescriptions')}</span>
                   <div className="text-lg font-black text-emerald-700">{prescriptions.length} Issued</div>
-                  <span className="text-[10px] text-slate-500 block">Signed by Doctor</span>
+                  <span className="text-[10px] text-slate-500 block">Doctor-confirmed</span>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border-2 border-slate-200 shadow-sm space-y-1">
                   <span className="text-[11px] font-bold text-slate-400 uppercase block">{t('navigation.documents')}</span>
                   <div className="text-lg font-black text-slate-800">{documents.length} Released</div>
-                  <span className="text-[10px] text-slate-500 block">Verified by Physician</span>
+                  <span className="text-[10px] text-slate-500 block">Released by Doctor</span>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border-2 border-slate-200 shadow-sm space-y-1">
@@ -305,9 +282,14 @@ export default function PatientDashboardPage() {
                         <FileCheck2 className="w-7 h-7" />
                       </div>
                       <div>
-                        <span className="bg-blue-100 text-[#1e40af] text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase">
-                          {t('patient.activeVisit')}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="bg-blue-100 text-[#1e40af] text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase">
+                            {t('patient.activeVisit')}
+                          </span>
+                          <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${activeVisit?.clinicalMode === 'AYUSH' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                            {activeVisit?.clinicalMode === 'AYUSH' ? 'AYUSH OPD' : 'Medical OPD'}
+                          </span>
+                        </div>
                         <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">
                           {t('patient.currentOpVisit')}
                         </h3>
@@ -316,7 +298,7 @@ export default function PatientDashboardPage() {
 
                     <div className="text-right">
                       <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('patient.opNumber')}</span>
-                      <span className="font-mono font-black text-sm text-[#1e40af]">{patient?.opNumber || 'OPD-2026-918231'}</span>
+                      <span className="font-mono font-black text-sm text-[#1e40af]">{activeVisit?.opNumber || patient?.opNumber || 'OPD-ACTIVE'}</span>
                     </div>
                   </div>
 
@@ -324,26 +306,26 @@ export default function PatientDashboardPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 text-xs">
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('patient.tokenNumber')}</span>
-                      <strong className="text-2xl font-black text-[#1e40af] block">{patient?.tokenNumber || 'TKN-104'}</strong>
+                      <strong className="text-2xl font-black text-[#1e40af] block">{activeVisit?.tokenNumber || 'Active'}</strong>
                     </div>
 
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('patient.department')}</span>
-                      <strong className="text-sm font-black text-slate-900 block">{patient?.department || 'General Medicine'}</strong>
-                      <span className="text-[10px] text-slate-500">Room 104</span>
+                      <strong className="text-sm font-black text-slate-900 block">{activeVisit?.department?.name || 'General Medicine'}</strong>
+                      <span className="text-[10px] text-slate-500">{activeVisit?.department?.roomNumber || 'Room 104'}</span>
                     </div>
 
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('common.status')}</span>
                       <span className="inline-block bg-blue-100 text-[#1e40af] font-black px-2 py-0.5 rounded text-[11px] mt-1">
-                        {patient?.currentStatus || 'Registered'}
+                        {activeVisit?.status || 'WAITING'}
                       </span>
                     </div>
 
                     <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('documents.doctorReviewPending')}</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Queue Position</span>
                       <span className="inline-block bg-amber-100 text-amber-900 font-black px-2 py-0.5 rounded text-[11px] mt-1">
-                        Waiting for Doctor
+                        {activeVisit?.queueNumber ? `#${activeVisit.queueNumber} in Queue` : 'Assigned to Queue'}
                       </span>
                     </div>
                   </div>
@@ -742,15 +724,15 @@ export default function PatientDashboardPage() {
               <div className="grid grid-cols-2 gap-4 text-xs">
                 <div className="p-3 bg-slate-50 rounded-xl border">
                   <span className="text-slate-400 font-bold uppercase block">{t('opd.fullName')}</span>
-                  <span className="font-bold text-slate-900">{patient?.name || 'Ramesh Kumar'}</span>
+                  <span className="font-bold text-slate-900">{patient?.name || '—'}</span>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border">
                   <span className="text-slate-400 font-bold uppercase block">{t('authentication.abhaId')}</span>
-                  <span className="font-mono font-bold text-slate-900">{patient?.abhaId || 'ABHA-9928-1102'}</span>
+                  <span className="font-mono font-bold text-slate-900">{patient?.abhaId || '—'}</span>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border">
                   <span className="text-slate-400 font-bold uppercase block">{t('patient.bloodGroup')}</span>
-                  <span className="font-bold text-slate-900">{patient?.bloodGroup || 'B+'}</span>
+                  <span className="font-bold text-slate-900">{patient?.bloodGroup || '—'}</span>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border">
                   <span className="text-slate-400 font-bold uppercase block">{t('patient.preferredLanguage')}</span>

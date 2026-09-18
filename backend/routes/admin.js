@@ -7,6 +7,7 @@ const ClinicalHistory = require('../models/ClinicalHistory');
 const MedicalDocument = require('../models/MedicalDocument');
 const Consultation = require('../models/Consultation');
 const Department = require('../models/Department');
+const OpdVisit = require('../models/OpdVisit');
 const Kiosk = require('../models/Kiosk');
 const AuditLog = require('../models/AuditLog');
 const { authenticateUser, requireRole } = require('../middleware/auth');
@@ -20,20 +21,24 @@ router.get('/stats', authenticateUser, requireRole(['ADMIN']), async (req, res) 
     const [
       totalPatients,
       todayPatients,
+      totalOpdVisits,
       waitingConsultations,
       activeConsultations,
       completedConsultations,
       totalDoctors,
+      activeDoctors,
       activeKiosks,
       pendingDocuments,
       redFlagHistories
     ] = await Promise.all([
       Patient.countDocuments(),
       Patient.countDocuments({ createdAt: { $gte: todayStart } }),
+      OpdVisit.countDocuments(),
       Consultation.countDocuments({ status: 'WAITING' }),
       Consultation.countDocuments({ status: 'IN_PROGRESS' }),
       Consultation.countDocuments({ status: 'COMPLETED' }),
       Doctor.countDocuments(),
+      Doctor.countDocuments({ isAvailable: true }),
       Kiosk.countDocuments({ status: 'Online' }),
       MedicalDocument.countDocuments({ reviewStatus: 'Pending' }),
       ClinicalHistory.countDocuments({ 'redFlags.0': { $exists: true } })
@@ -55,10 +60,12 @@ router.get('/stats', authenticateUser, requireRole(['ADMIN']), async (req, res) 
       data: {
         totalPatients,
         todayPatients: todayPatients || totalPatients,
+        totalOpdVisits,
         waitingConsultations,
         activeConsultations,
         completedConsultations,
         totalDoctors,
+        activeDoctors: activeDoctors || totalDoctors,
         activeKiosks,
         pendingDocuments,
         attentionAlerts: redFlagHistories,
@@ -91,7 +98,7 @@ router.get('/kiosks', authenticateUser, requireRole(['ADMIN']), async (req, res)
 });
 
 // Real-time Audit Logs Feed
-router.get('/logs', authenticateUser, requireRole(['ADMIN']), async (req, res) => {
+router.get(['/logs', '/audit-logs'], authenticateUser, requireRole(['ADMIN']), async (req, res) => {
   try {
     const logs = await AuditLog.find().sort({ timestamp: -1 }).limit(100);
     res.json({ success: true, data: logs });

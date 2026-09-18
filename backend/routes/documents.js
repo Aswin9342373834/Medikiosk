@@ -154,9 +154,9 @@ router.get('/:id', authenticateUser, async (req, res) => {
       // CRITICAL: Check document visibility
       if (doc.visibility !== 'Released') {
         await createAuditLog(req.user.id, 'PATIENT', 'ACCESS_DENIED', 'MedicalDocument', doc._id, 'Failure', 'Attempted to access Private document');
-        return res.status(403).json({ 
-          success: false, 
-          message: 'Access Denied: This medical report is pending doctor review and has not been released.' 
+        return res.status(403).json({
+          success: false,
+          message: 'Access Denied: This medical report is pending doctor review and has not been released.'
         });
       }
     }
@@ -243,6 +243,43 @@ router.patch('/:id/visibility', authenticateUser, requireRole(['DOCTOR']), async
     res.json({
       success: true,
       message: `Document has been marked as ${visibility}.`,
+      data: doc
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Doctor OCR & Clinical Data Verification & Correction (Side-by-Side Review)
+router.patch('/:id/extracted-data', authenticateUser, requireRole(['DOCTOR']), async (req, res) => {
+  try {
+    const { ocrText, extractedData, documentType } = req.body;
+    const doc = await MedicalDocument.findById(req.params.id);
+    if (!doc) return res.status(404).json({ success: false, message: 'Document not found' });
+
+    // Update extracted data and OCR text, preserving the original file unchanged
+    if (ocrText !== undefined) doc.ocrText = ocrText;
+    if (extractedData !== undefined) doc.extractedData = extractedData;
+    if (documentType !== undefined) doc.documentType = documentType;
+
+    doc.reviewStatus = 'Reviewed';
+    doc.reviewedBy = req.user.id;
+    doc.reviewedAt = new Date();
+    await doc.save();
+
+    await createAuditLog(
+      req.user.id,
+      'DOCTOR',
+      'DOCTOR_VIEWED_DOCUMENT',
+      'MedicalDocument',
+      doc._id,
+      'Success',
+      'Doctor verified and updated OCR extracted entities'
+    );
+
+    res.json({
+      success: true,
+      message: 'OCR extracted clinical entities verified and updated successfully. Original document preserved.',
       data: doc
     });
   } catch (error) {

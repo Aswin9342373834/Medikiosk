@@ -28,7 +28,11 @@
     "or": "or",
     "notSure": "Not sure",
     "viewDetails": "View Details",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "next": "Next Step",
+    "ayush_mode": "AYUSH Clinical Protocol",
+    "document_upload": "Upload Medical Records",
+    "upload_instructions": "Upload prescription slips, lab investigations, or discharge summaries (PDF or Image)."
   },
   "navigation": {
     "home": "Home",
@@ -323,5 +327,12 @@
     "closeDialog": "Close dialog",
     "openMenu": "Open menu",
     "audioSupport": "Audio voice recognition active"
+  },
+  "consent": {
+    "title": "Digital Consent for Clinical Intake",
+    "body": "I hereby grant informed consent for hospital OPD clinical intake, structured medical history recording, and physician consultation. I understand that symptom structuring is assisted by clinical NLP and reviewed by the treating physician.",
+    "aiNotice": "Assistive AI Notice: Clinical NLP assists with intake structuring and flag detection; all medical diagnoses, prescriptions, and treatment decisions are exclusively finalized by the treating doctor.",
+    "legalNotice": "Your digital health records are governed under Indian digital health standards and privacy guidelines. Medical documents remain private until explicitly authorized by your doctor.",
+    "agree": "I understand and agree to the digital clinical intake terms and health data processing."
   }
 }

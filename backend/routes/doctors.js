@@ -6,6 +6,8 @@ const MedicalDocument = require('../models/MedicalDocument');
 const Consultation = require('../models/Consultation');
 const Prescription = require('../models/Prescription');
 const Investigation = require('../models/Investigation');
+const OpdVisit = require('../models/OpdVisit');
+const Consent = require('../models/Consent');
 const Doctor = require('../models/Doctor');
 const { authenticateUser, requireRole, createAuditLog } = require('../middleware/auth');
 
@@ -30,7 +32,8 @@ router.get('/queue', authenticateUser, requireRole(['DOCTOR', 'ADMIN']), async (
         age: p.age || 45,
         gender: p.gender || 'Not specified',
         abhaId: p.abhaId || 'N/A',
-        department: h.ayushMode ? 'AYUSH / Ayurveda' : 'General Medicine',
+        preferredLanguage: p.preferredLanguage || 'English',
+        department: h.ayushMode ? 'AYUSH / Ayurveda' : (p.department || 'General Medicine'),
         complaint: h.presentingComplaint,
         aiSummary: h.aiSummary,
         aiStatus: h.aiStatus,
@@ -64,6 +67,8 @@ router.get('/patient-details/:patientId', authenticateUser, requireRole(['DOCTOR
     const investigations = await Investigation.find({ patientId }).sort({ orderedDate: -1 });
     const prescriptions = await Prescription.find({ patientId }).sort({ date: -1 });
     const consultations = await Consultation.find({ patientId }).sort({ consultationDate: -1 });
+    const opdVisit = await OpdVisit.findOne({ patientId }).sort({ createdAt: -1 });
+    const consent = await Consent.findOne({ patientId }).sort({ createdAt: -1 });
 
     // Build unified chronological medical timeline
     const timeline = [
@@ -108,7 +113,9 @@ router.get('/patient-details/:patientId', authenticateUser, requireRole(['DOCTOR
         investigations,
         prescriptions,
         consultations,
-        timeline
+        timeline,
+        opdVisit,
+        consent
       }
     });
   } catch (error) {

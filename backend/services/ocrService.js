@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
   fileFilter: (req, file, cb) => {
@@ -44,6 +44,24 @@ class OCRProvider {
   }
 }
 
+function isValidImageBuffer(buffer) {
+  if (!buffer || buffer.length < 4) return false;
+  // PNG: 89 50 4E 47
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) return true;
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return true;
+  // BMP: 42 4D
+  if (buffer[0] === 0x42 && buffer[1] === 0x4D) return true;
+  // GIF: 47 49 46 38
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) return true;
+  return false;
+}
+
+function isValidPdfBuffer(buffer) {
+  if (!buffer || buffer.length < 5) return false;
+  return buffer.slice(0, 4).toString() === '%PDF';
+}
+
 class TesseractLocalProvider extends OCRProvider {
   constructor() {
     super();
@@ -51,21 +69,60 @@ class TesseractLocalProvider extends OCRProvider {
   }
 
   async extract(filePath, mimeType) {
+    const isImage = /image\/(jpeg|jpg|png)/i.test(mimeType) || /\.(jpe?g|png)$/i.test(filePath);
+    if (!isImage) return null;
+
     try {
+      if (!fs.existsSync(filePath)) {
+        return { text: '', confidence: 0, provider: this.name, status: 'OCR failed', error: 'File not found' };
+      }
+
+      const fileBuffer = fs.readFileSync(filePath);
+      if (!isValidImageBuffer(fileBuffer)) {
+        // Not a valid image file binary; gracefully return Low-confidence extraction without crashing worker
+        return {
+          text: '',
+          confidence: 0,
+          provider: this.name,
+          status: 'Low-confidence extraction',
+          error: 'File does not contain valid image binary stream'
+        };
+      }
+
       const Tesseract = require('tesseract.js');
-      console.log('Running Tesseract OCR on ' + filePath + '...');
-      const result = await Tesseract.recognize(filePath, 'eng', {
-        logger: m => {}
+      const langPath = path.join(__dirname, '..');
+
+      const ocrPromise = Tesseract.recognize(filePath, 'eng', {
+        langPath: langPath,
+        logger: () => {}
       });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Tesseract OCR execution timed out')), 8000)
+      );
+
+      const result = await Promise.race([ocrPromise, timeoutPromise]);
+      const text = result.data?.text?.trim() || '';
+      const confidence = Math.round(result.data?.confidence || 0);
+      const status = text.length > 0
+        ? (confidence >= 60 ? 'Successfully extracted' : 'Low-confidence extraction')
+        : 'Low-confidence extraction';
+
       return {
-        text: result.data?.text || '',
-        confidence: result.data?.confidence || 0,
+        text,
+        confidence,
         provider: this.name,
-        status: 'Completed'
+        status
       };
     } catch (e) {
-      console.warn('Tesseract OCR engine not available or failed:', e.message);
-      return null;
+      console.warn('Tesseract OCR engine failed:', e.message);
+      return {
+        text: '',
+        confidence: 0,
+        provider: this.name,
+        status: 'OCR failed',
+        error: e.message
+      };
     }
   }
 }
@@ -81,17 +138,49 @@ class PdfParseProvider extends OCRProvider {
       return null;
     }
     try {
-      const pdfParse = require('pdf-parse');
+      if (!fs.existsSync(filePath)) {
+        return { text: '', confidence: 0, provider: this.name, status: 'OCR failed', error: 'File not found' };
+      }
+
       const dataBuffer = fs.readFileSync(filePath);
-      const data = await pdfParse(dataBuffer);
+      if (!isValidPdfBuffer(dataBuffer)) {
+        return {
+          text: '',
+          confidence: 0,
+          provider: this.name,
+          status: 'Low-confidence extraction',
+          error: 'File does not contain valid PDF binary header'
+        };
+      }
+
+      const pdfParseModule = require('pdf-parse');
+      let text = '';
+
+      if (typeof pdfParseModule === 'function') {
+        const data = await pdfParseModule(dataBuffer);
+        text = data.text?.trim() || '';
+      } else if (pdfParseModule && typeof pdfParseModule.PDFParse === 'function') {
+        const parser = new pdfParseModule.PDFParse({ data: dataBuffer });
+        await parser.load();
+        const textResult = await parser.getText();
+        text = (typeof textResult === 'string' ? textResult : (textResult?.text || '')).trim();
+        await parser.destroy();
+      }
+
       return {
-        text: data.text || '',
+        text,
+        confidence: text.length > 0 ? 95 : 0,
         provider: this.name,
-        status: 'Completed'
+        status: text.length > 0 ? 'Successfully extracted' : 'Low-confidence extraction'
       };
     } catch (e) {
       console.warn('PDF parser not available or failed:', e.message);
-      return null;
+      return {
+        text: '',
+        confidence: 0,
+        provider: this.name,
+        status: 'OCR failed'
+      };
     }
   }
 }
@@ -105,9 +194,10 @@ class DevelopmentFallbackProvider extends OCRProvider {
   async extract(filePath, mimeType) {
     return {
       text: '',
+      confidence: 0,
       provider: this.name,
-      status: 'OCR provider not configured',
-      message: 'OCR provider not configured. Please configure Tesseract, Google Vision, or AWS Textract for production handwritten/printed document extraction.'
+      status: 'OCR unavailable',
+      message: 'OCR extraction engine is not available. Please review document manually.'
     };
   }
 }
@@ -127,7 +217,7 @@ const ocrService = {
     for (const provider of providers) {
       try {
         const result = await provider.extract(filePath, mimeType);
-        if (result && (result.text?.trim().length > 0 || result.status === 'OCR provider not configured')) {
+        if (result !== null && result !== undefined) {
           return result;
         }
       } catch (err) {
@@ -138,7 +228,7 @@ const ocrService = {
     return {
       text: '',
       provider: 'Development OCR mode',
-      status: 'OCR provider not configured'
+      status: 'OCR unavailable'
     };
   }
 };

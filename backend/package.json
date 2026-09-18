@@ -5,18 +5,21 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "jest"
+    "test": "jest",
+    "test:e2e": "node tests/automated_e2e_runner.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "mongoose": "^7.4.0",
-    "socket.io": "^4.7.2",
-    "bcryptjs": "^2.4.3",
+    "express": "^4.18.2",
     "jsonwebtoken": "^9.0.0",
-    "axios": "^1.6.0",
-    "multer": "^1.4.5-lts.1"
+    "mongoose": "^7.4.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^2.4.5",
+    "socket.io": "^4.7.2",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "jest": "^29.6.0",

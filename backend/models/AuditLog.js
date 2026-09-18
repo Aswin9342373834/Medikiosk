@@ -9,6 +9,8 @@ const auditLogSchema = new mongoose.Schema({
     required: true,
     enum: [
       'PATIENT_CREATED',
+      'OPD_CREATED',
+      'CONSENT_RECORDED',
       'HISTORY_SUBMITTED',
       'DOCUMENT_UPLOADED',
       'AI_PROCESSING_STARTED',

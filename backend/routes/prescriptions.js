@@ -3,6 +3,7 @@ const router = express.Router();
 const Prescription = require('../models/Prescription');
 const Patient = require('../models/Patient');
 const Notification = require('../models/Notification');
+const digitalSignatureService = require('../services/digitalSignatureService');
 const { authenticateUser, requireRole, createAuditLog } = require('../middleware/auth');
 
 // Create Prescription (Doctor Only)
@@ -13,6 +14,15 @@ router.post('/', authenticateUser, requireRole(['DOCTOR']), async (req, res) => 
       return res.status(400).json({ success: false, message: 'Patient ID and prescribed items are required' });
     }
 
+    const docHash = digitalSignatureService.computeDigest({
+      patientId,
+      doctorId: req.user.id,
+      items,
+      followUp,
+      generalAdvice,
+      date: new Date().toISOString()
+    });
+
     const prescription = await Prescription.create({
       patientId,
       doctorId: req.user.id,
@@ -21,7 +31,12 @@ router.post('/', authenticateUser, requireRole(['DOCTOR']), async (req, res) => 
       followUp,
       generalAdvice,
       date: new Date(),
-      status: 'Active'
+      status: 'Active',
+      digitalSignature: {
+        status: 'Doctor Confirmed (PKI DSC Integration-Ready)',
+        documentHash: docHash,
+        signedAt: new Date()
+      }
     });
 
     await createAuditLog(req.user.id, 'DOCTOR', 'PRESCRIPTION_CREATED', 'Prescription', prescription._id);

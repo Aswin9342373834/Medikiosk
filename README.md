@@ -1,62 +1,29 @@
-# MediKiosk: Indian Government Hospital Digital Clinical Intake Platform
+# MediKiosk
+## AI-Assisted Clinical History & Medical Document Intake Platform
+**Target:** Government Hospitals / High-Volume OPD
 
-MediKiosk is a mission-critical digital clinical intake platform engineered specifically for high-volume Outpatient Departments (OPD) in Indian Government Hospitals. It streamlines patient registration, captures structured clinical history through conversational multilingual input, facilitates medical document upload with physician-controlled privacy, and equips doctors with synthesized clinical summaries before consultations.
+> **Project Classification**: **COMPLETE UPGRADED MEDIKIOSK PROTOTYPE / MVP with ABDM/FHIR-ready architecture**
 
----
-
-## 🏥 Context & Problem Statement
-
-In Indian tertiary government hospitals and medical college hospitals, outpatient clinics frequently manage 300–800 patients per physician per day. Doctors have on average **2 to 5 minutes** per consultation. A major portion of this limited time is spent on repetitive administrative intake:
-- Eliciting basic chief complaints, onset, duration, and pain scores.
-- Unraveling unorganized physical paper records, old prescription slips, and outside diagnostic reports.
-- Manual data entry into hospital registers.
-
-### The Solution
-MediKiosk relocates clinical history taking and document scanning to self-service touch terminals and a dedicated patient portal:
-1. **Self-Service Token Dispensation**: Fast 6-step OP registration with ABHA and UHID generation.
-2. **Conversational Clinical Intake**: Multilingual voice and touch chip intake (with optional AYUSH parameters and red-flag triage detection).
-3. **Doctor-Controlled Medical Privacy**: Diagnostic documents are private by default until clinically reviewed and explicitly released by the doctor.
-4. **Physician Cockpit**: Prioritized triage queues, AI-structured summaries with mandatory verification banners, e-prescription generation, and consultation wrap-up.
+MediKiosk is a production-grade prototype platform engineered specifically for high-volume Indian Government Hospital Outpatient Departments (OPDs). It streamlines patient registration, captures structured clinical history through conversational multilingual voice and touch input, manages medical document intake with doctor-controlled privacy, and equips physicians with synthesized clinical dossiers before consultations begin.
 
 ---
 
-## 🌐 Multilingual Support (i18n)
+## ðŸ¥ Problem Statement & Objectives
 
-MediKiosk features native, zero-refresh multilingual internationalization across 3 core languages:
-- **English** (`en`, default)
-- **Tamil — தமிழ்** (`ta`)
-- **Hindi — हिन्दी** (`hi`)
+### The Challenge in Public OPDs
+In Indian tertiary government hospitals, medical colleges, and district civil hospitals, outpatient clinics frequently manage **300 to 800 patients per physician per day**. Doctors have an average of **2 to 5 minutes** per clinical consultation. A major portion of this limited time is lost to repetitive, non-clinical administrative friction:
+- Eliciting basic chief complaints, symptom timeline, onset, duration, and pain severity manually.
+- Sifting through unorganized physical paper records, old hospital prescription slips, and external diagnostic reports brought by patients.
+- Manually writing repetitive demographic and clinical intake data into physical OPD registers.
+- High multilingual diversity among patients, creating comprehension barriers for clinical history.
 
-### Multilingual Features
-- Centralized `LanguageProvider` with synchronized document attributes (`<html lang="..." dir="ltr">`).
-- Reusable `LanguageSwitcher` in public headers, dashboard navigation, and kiosk touch headers displaying native scripts (`English`, `தமிழ்`, `हिन्दी`).
-- Dynamic Web Speech API acoustic locale binding (`en-IN`, `ta-IN`, `hi-IN`) with graceful fallback to interactive touch chips.
-- **Medical Data Shielding**: Patient names, doctor credentials, ABHA numbers, UHIDs, OP numbers, prescription dosages, and numerical laboratory values are preserved verbatim and never translated.
-
----
-
-## 👥 Core Workflows
-
-```mermaid
-graph TD
-    A["Public Gateway (/)<br/>Language Selector [English | தமிழ் | हिन्दी]"] --> B["[ PATIENT PORTAL ]"]
-    A --> C["[ DOCTOR COCKPIT ]"]
-    A --> D["[ ADMIN COMMAND ]"]
-    A -.-> K["Terminal Touchscreen (/kiosk)"]
-
-    B --> P1["Patient Login / Registration"]
-    P1 --> P2["Patient Dashboard (/patient)<br/>11-Tab Sidebar & Real-Time OPD Token"]
-    P2 --> P3["OP Registration Flow (/patient/op-registration)<br/>Steps 1-6 Government Token Flow"]
-    P3 --> P4["Clinical Intake (/patient/clinical-history)<br/>Voice/Touch, AYUSH, Red-Flag Triage"]
-    P4 --> P5["Medical Documents (/patient/documents)<br/>Private by Default"]
-
-    C --> D1["Doctor Triage Queue (/doctor)<br/>Red-Flag Prioritization"]
-    D1 --> D2["Patient Clinical Review & AI Notice"]
-    D1 --> D3["Document Inspection & Patient Release"]
-    D1 --> D4["Rx Builder & Consultation Wrap-up"]
-
-    D --> AD1["Admin Panel (/admin)<br/>Staff, Departments, Kiosks, Audit Logs"]
-```
+### Core Objectives
+1. **Reduce Wait & Intake Overhead**: Accelerate clinical intake from 5 minutes down to <60 seconds of physician time through self-service kiosk terminals and patient portals.
+2. **Standardized Clinical History Intake**: Capture structured complaints, duration, severity, past medical history, allergies, and authoritative AYUSH Dashavidha Pariksha parameters.
+3. **Doctor-Controlled Medical Privacy**: Secure patient-uploaded diagnostic files with default `Private` visibility until clinically verified and released by the attending doctor.
+4. **Physician Cockpit & Triage Prioritization**: Automatically detect clinical red flags (acute chest pain, respiratory distress, stroke signs) to prioritize urgent patients at the top of the queue.
+5. **ABDM & FHIR R4 Standardization**: Produce valid NRCES/ABDM `OPConsultRecord` Document Bundles ready for Indian digital health exchange.
+6. **Zero-Trace Kiosk Security**: Enforce a strict 90-second inactivity timeout with a 15-second countdown warning modal that purges all patient data from memory upon expiration.
 
 ### 1. Patient Experience
 - **Authentication & Self-Registration**: Secure registration with ABHA ID, name, contact, and password.
@@ -79,7 +46,7 @@ graph TD
 
 ---
 
-## 🔒 Security & Privacy Architecture
+## ðŸ”’ Security & Privacy Architecture
 
 | Control | Implementation |
 | :--- | :--- |
@@ -91,7 +58,7 @@ graph TD
 
 ---
 
-## 🛠️ Technology Stack
+## ðŸ› ï¸ Technology Stack
 
 - **Frontend**: Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS, Lucide Icons.
 - **Backend**: Node.js, Express.js (REST API), Socket.IO (Real-time synchronization).
@@ -101,40 +68,40 @@ graph TD
 
 ---
 
-## 📁 Project Structure
+## ðŸ“ Project Structure
 
 ```text
 Medikosiko/
-├── backend/
-│   ├── config/              # MongoDB connection & configuration
-│   ├── middleware/          # JWT authentication, RBAC, and audit logging
-│   ├── models/              # Mongoose schemas (User, Patient, Doctor, Prescription, etc.)
-│   ├── routes/              # Express route controllers (/auth, /patients, /doctors, etc.)
-│   ├── services/            # Local AI (Ollama) and OCR extraction services
-│   ├── tests/               # Automated test suites (Jest & Supertest)
-│   ├── uploads/             # Secure directory for patient medical uploads (.gitkeep)
-│   ├── .env.example         # Template for backend environment variables
-│   ├── index.js             # Express application and Socket.IO server entrypoint
-│   └── package.json         # Backend dependencies & test scripts
-├── frontend/
-│   ├── public/              # Static assets and icons
-│   ├── src/
-│   │   ├── app/             # Next.js App Router (public, patient, doctor, admin, kiosk)
-│   │   ├── components/      # Shared components (Navbar, LanguageSwitcher, VoiceInput)
-│   │   ├── contexts/        # LanguageContext (React i18n state)
-│   │   ├── locales/         # Localized JSON dictionaries (en.json, ta.json, hi.json)
-│   │   └── lib/             # Central API client (api.ts) and Socket.IO client (socket.ts)
-│   ├── .env.example         # Template for frontend environment variables
-│   ├── next.config.js       # Next.js configuration with API proxy rewrites
-│   ├── tailwind.config.ts   # Tailwind styling and high-contrast hospital color palette
-│   └── package.json         # Frontend dependencies & Next.js scripts
-├── .gitignore               # Root ignore rules for dependencies, secrets, and uploads
-└── README.md                # Project documentation
+â”œâ”€â”€ backend/
+â”‚   â”œâ”€â”€ config/              # MongoDB connection & configuration
+â”‚   â”œâ”€â”€ middleware/          # JWT authentication, RBAC, and audit logging
+â”‚   â”œâ”€â”€ models/              # Mongoose schemas (User, Patient, Doctor, Prescription, etc.)
+â”‚   â”œâ”€â”€ routes/              # Express route controllers (/auth, /patients, /doctors, etc.)
+â”‚   â”œâ”€â”€ services/            # Local AI (Ollama) and OCR extraction services
+â”‚   â”œâ”€â”€ tests/               # Automated test suites (Jest & Supertest)
+â”‚   â”œâ”€â”€ uploads/             # Secure directory for patient medical uploads (.gitkeep)
+â”‚   â”œâ”€â”€ .env.example         # Template for backend environment variables
+â”‚   â”œâ”€â”€ index.js             # Express application and Socket.IO server entrypoint
+â”‚   â””â”€â”€ package.json         # Backend dependencies & test scripts
+â”œâ”€â”€ frontend/
+â”‚   â”œâ”€â”€ public/              # Static assets and icons
+â”‚   â”œâ”€â”€ src/
+â”‚   â”‚   â”œâ”€â”€ app/             # Next.js App Router (public, patient, doctor, admin, kiosk)
+â”‚   â”‚   â”œâ”€â”€ components/      # Shared components (Navbar, LanguageSwitcher, VoiceInput)
+â”‚   â”‚   â”œâ”€â”€ contexts/        # LanguageContext (React i18n state)
+â”‚   â”‚   â”œâ”€â”€ locales/         # Localized JSON dictionaries (en.json, ta.json, hi.json)
+â”‚   â”‚   â””â”€â”€ lib/             # Central API client (api.ts) and Socket.IO client (socket.ts)
+â”‚   â”œâ”€â”€ .env.example         # Template for frontend environment variables
+â”‚   â”œâ”€â”€ next.config.js       # Next.js configuration with API proxy rewrites
+â”‚   â”œâ”€â”€ tailwind.config.ts   # Tailwind styling and high-contrast hospital color palette
+â”‚   â””â”€â”€ package.json         # Frontend dependencies & Next.js scripts
+â”œâ”€â”€ .gitignore               # Root ignore rules for dependencies, secrets, and uploads
+â””â”€â”€ README.md                # Project documentation
 ```
 
 ---
 
-## ⚙️ Environment Setup & Installation
+## âš™ï¸ Environment Setup & Installation
 
 ### Prerequisites
 - Node.js (v18 or higher recommended)
@@ -214,15 +181,15 @@ npm run dev
 
 ---
 
-## 🧪 Testing & Verification
+## ðŸ§ª Testing & Verification
 
 ### Automated Backend Tests
-Run the complete automated test suite (verifying authentication, OPD registration, clinical intake, document privacy controls, doctor queue, prescriptions, and multilingual dictionary integrity):
+Run the complete automated test suite (verifying authentication, RBAC, public registration restrictions, authoritative clinicalMode enforcement, OPD state machine transitions, document privacy, side-by-side OCR file preservation, cross-patient ownership, doctor queue, prescriptions, FHIR R4 bundles, integration services, and multilingual dictionary integrity):
 ```bash
 cd backend
 npm test
 ```
-*All 26 test cases across `api.test.js` and `i18n.test.js` pass with 100% success.*
+*All 43 test cases across `api.test.js` and `i18n.test.js` pass with 100% success against an isolated `medikiosk_test` database.*
 
 ### Frontend Linting & Build
 ```bash
@@ -230,19 +197,143 @@ cd frontend
 npm run lint
 npm run build
 ```
-*Generates and optimizes all 25 static application pages with zero errors.*
+*Compiles cleanly and optimizes all 25 static application pages with zero errors.*
 
 ---
 
-## 🔍 Known Limitations & Architectural Notes
+## ðŸ“Š Implementation & Architectural Status
 
-1. **ABDM / FHIR Compliance**: The application architecture models ABHA IDs, UHIDs, and consent flows following Indian National Health Authority (NHA) design guidelines. Live production integration with the live Ayushman Bharat Digital Mission (ABDM) sandbox/gateway requires official ABDM partner sandbox credentials and cryptographic token signing.
-2. **Local AI & Ollama Fallback**: The AI clinical summarizer utilizes a local Ollama instance (`deepseek-r1:8b`). If Ollama is offline or unavailable, the backend seamlessly falls back to a deterministic, rule-based clinical structuring engine without interrupting patient care.
-3. **Medical OCR**: Physical document digitization includes a local OCR extraction abstraction. For handwritten clinical case notes in clinical production, integration with high-precision cloud or on-premise medical vision APIs is recommended.
-4. **Voice Input**: Speech-to-text uses the standard Web Speech API with language acoustic models (`ta-IN`, `hi-IN`, `en-IN`). In offline kiosk environments without browser cloud speech engines, direct integration with edge voice engines (e.g. Bhashini / AI4Bharat) is recommended.
+### ðŸŸ¢ IMPLEMENTED
+- **Authoritative Department Clinical Mode**: MongoDB-backed authoritative mode (`MEDICAL` vs `AYUSH`) enforced in the backend. Client spoofing attempts are strictly overridden.
+- **Unified Department Configuration**: Consistent departments across models, seed, tests, and UI: Allopathic (`General Medicine`, `Cardiology`, `Pediatrics`, `Orthopedics`) and AYUSH (`Ayurveda`, `Siddha`, `Unani`).
+- **OPD State Machine**: Formal state machine (`REGISTERED` &rarr; `WAITING` &rarr; `HISTORY_IN_PROGRESS` &rarr; `HISTORY_COMPLETED` &rarr; `READY_FOR_DOCTOR` &rarr; `IN_CONSULTATION` &rarr; `COMPLETED`) with invalid transitions strictly rejected (e.g. `COMPLETED` &rarr; `NEW`).
+- **Local OCR Extraction Engine**: Integrated local extraction using `tesseract.js` (pure WebAssembly/JS) for printed documents and `pdf-parse` for PDF text streams. Enforces standardized lifecycle statuses (`Processing`, `Successfully extracted`, `Low-confidence extraction`, `OCR unavailable`, `OCR failed`) and numerical confidence tracking.
+- **FHIR R4 Bundle Export**: Generates NRCES / ABDM compliant `OPConsultRecord` FHIR R4 Document Bundles (`GET /api/patients/:id/fhir-bundle` and `GET /api/opd/visits/:id/fhir`) with `Composition`, `Patient`, `Encounter`, `Condition`, `Observation` (vitals), `MedicationRequest`, and `AllergyIntolerance` resources. Accessible directly from the Patient Records portal.
+- **Document Privacy Controls**: Documents default to `Private`. Patients cannot access private documents. Doctors review and explicitly release documents. Cross-patient document isolation enforced at the API level.
+- **Side-by-Side OCR Verification**: Doctor modal viewing original PDF/image alongside editable structured entities (`testName`, `value`, `unit`, `referenceRange`, `impression`). Verification updates metadata while the physical uploaded file remains 100% immutable.
+- **Cross-Patient Ownership Security**: Authenticated user identity (`req.user.id`) enforced on profile, OPD visits, clinical history, documents, prescriptions, FHIR bundles, and consent records.
+- **Public Registration Guardrails**: Public registration (`/register`) is restricted strictly to the `PATIENT` role; unauthorized requests for `DOCTOR` or `ADMIN` roles are rejected with `403 Forbidden`.
+- **Kiosk Security & Inactivity Reset**: 90-second inactivity timer with 15-second visual countdown modal, purging all sensitive memory, form state, and uploaded document references.
+- **Trilingual Localization (i18n)**: Full UI localization across English, Tamil, and Hindi for patient portals, consent, kiosk, validation, and clinical questionnaires.
+### 2. Full Automated End-to-End Test Suite
+Run the comprehensive live end-to-end test suite (exercising Patient E2E, Medical mode, AYUSH mode, mode spoofing rejection, RBAC, document privacy lifecycle, OCR engine statuses, deterministic AI fallback, FHIR R4 exports, digital consent, doctor-confirmed prescriptions with SHA-256 digest, kiosk 90s timeout, multilingual rendering, Socket.IO live broadcasts, and live admin operational telemetry):
+```bash
+cd backend
+npm run test:e2e
+```
+*All 15 E2E categories validate with 100% PASS against the live server and database.*
 
 ---
 
-## 📜 License & Acknowledgments
+## ðŸ“¡ API Overview
 
-Developed for Indian Public Healthcare and Government Hospital OPD workflow modernization. All medical intake forms adhere to standard clinical documentation guidelines.
+| Endpoint | Method | Role | Description |
+| :--- | :---: | :---: | :--- |
+| `/api/health` | GET | Public | Server operational status and timestamp |
+| `/api/auth/register` | POST | Public | Patient-only self-registration (Doctor/Admin rejected with 403) |
+| `/api/auth/login` | POST | Public | JWT authentication for Patients, Doctors, and Hospital Admins |
+| `/api/departments` | GET | Public | Active clinical departments with authoritative `clinicalMode` |
+| `/api/opd/visits` | POST | PATIENT | Create OPD visit; backend derives authoritative `clinicalMode` |
+| `/api/opd/visits/:id/status` | PATCH | Authenticated | OPD state machine transitions (`REGISTERED` &rarr; `WAITING`, etc.) |
+| `/api/opd/visits/:id/fhir` | GET | Authenticated | Export OPD encounter as NRCES/ABDM FHIR R4 Document Bundle |
+| `/api/consent` | POST | PATIENT | Record digital consent (`purpose`, `language`, `version`) with audit log |
+| `/api/clinical-history/submit-history` | POST | PATIENT | Conversational intake submission with red-flag rule scan |
+| `/api/documents/upload` | POST | PATIENT | Secure document upload (`visibility: 'Private'` by default) |
+| `/api/documents/:id` | GET | Authenticated | Document inspection (Doctor access or released patient access only) |
+| `/api/documents/:id/visibility` | PATCH | DOCTOR | Doctor-controlled document release (`Private` &rarr; `Released`) |
+| `/api/documents/:id/extracted-data` | PATCH | DOCTOR | Side-by-side OCR entity verification (disk file remains immutable) |
+| `/api/doctors/queue` | GET | DOCTOR | Real-time queue sorted by acuity (`URGENT` red flags first) |
+| `/api/consultations/start` | POST | DOCTOR | Initiate physician consultation session |
+| `/api/consultations/complete` | POST | DOCTOR | Complete consultation and discharge patient |
+| `/api/prescriptions` | POST | DOCTOR | Authorize doctor prescription with SHA-256 cryptographic digest |
+| `/api/patients/:id/fhir-bundle` | GET | Authenticated | Full patient dossier export in NRCES/ABDM FHIR R4 Bundle |
+| `/api/admin/stats` | GET | ADMIN | Live telemetry KPIs (patients, visits, doctors, kiosks, red flags) |
+| `/api/admin/audit-logs` | GET | ADMIN | Immutable security and regulatory audit log feed |
+
+---
+
+## ðŸ—„ï¸ Database Architecture
+
+| Collection | Schema Model | Purpose |
+| :--- | :--- | :--- |
+| `users` | `User.js` | Core authentication, bcrypt hashed credentials, and role assignments (`PATIENT`, `DOCTOR`, `ADMIN`) |
+| `patients` | `Patient.js` | Demographic records, ABHA IDs, government hospital UHIDs, and assigned OPD tokens |
+| `doctors` | `Doctor.js` | Physician credentials, MCI license numbers, specialties, and OPD room allocations |
+| `departments` | `Department.js` | Hospital specialties with authoritative `clinicalMode` (`MEDICAL` vs `AYUSH`) |
+| `opdvisits` | `OpdVisit.js` | Outpatient encounters, token numbers (`TKN-XXX`), and state machine status |
+| `consents` | `Consent.js` | Digital consent audit trail (purpose, version, language, timestamp) |
+| `clinicalhistories` | `ClinicalHistory.js` | Chief complaints, HPI, pain scales, AYUSH Dashavidha Pariksha, and red-flag alerts |
+| `medicaldocuments` | `MedicalDocument.js` | Diagnostic reports with storage paths, OCR confidence, extracted entities, and visibility lifecycle |
+| `consultations` | `Consultation.js` | Physician clinical notes, assessment, and treatment plans |
+| `prescriptions` | `Prescription.js` | Drug items (dosage, frequency, duration) with SHA-256 tamper-evident digest |
+| `kiosks` | `Kiosk.js` | Touch terminal telemetry, physical locations, and connectivity health |
+| `auditlogs` | `AuditLog.js` | Immutable chronological event log for access control, uploads, and data releases |
+
+---
+
+## ðŸŽ¬ Step-by-Step Demo Walkthrough
+
+1. **Self-Service Kiosk (`/kiosk`)**:
+   - Patient selects language (**English**, **à®¤à®®à®¿à®´à¯**, or **à¤¹à¤¿à¤¨à¥à¤¦à¥€**).
+   - Enters basic demographics or scans ABHA card.
+   - Selects OPD department:
+     - Selecting **General Medicine / Cardiology / Pediatrics / Orthopedics** activates **Medical Mode**.
+     - Selecting **Ayurveda / Siddha / Unani** automatically activates **AYUSH Mode** with Prakriti, Vikriti, and Agni assessment.
+   - Records chief complaints and answers follow-up severity questions.
+   - If user steps away, the **90-second inactivity timer** triggers a **15-second visual warning** and resets all session memory cleanly.
+2. **Patient Dashboard (`/patient`)**:
+   - Patient views live OPD token number and estimated queue position.
+   - Uploads outside lab report or previous prescription: default visibility is immediately set to `Private` (hidden from public view).
+3. **Doctor Cockpit (`/doctor`)**:
+   - Attending doctor logs in (`doctor@hospital.gov.in` / `Password123!`).
+   - Doctor queue displays patients prioritized by acuity: cases with acute chest pain or respiratory distress appear at the top as **`URGENT`**.
+   - Doctor opens patient dossier to review the structured intake summary with mandatory disclaimer: *"AI-Assisted Clinical Summary â€” Requires Doctor Review"*.
+   - Doctor clicks **Inspect Document** to review uploaded PDF/image side-by-side, edits extracted lab values if needed, and clicks **Release to Patient**.
+   - Doctor starts consultation, writes prescription with frequency and follow-up, and completes the visit.
+4. **Patient Record Access (`/patient/records`)**:
+   - Patient can now view the released diagnostic report and doctor-confirmed prescription.
+   - Patient can click **Export FHIR R4 Bundle** to download a standardized NRCES/ABDM JSON bundle.
+5. **Hospital Command Center (`/admin`)**:
+   - Hospital administrator logs in (`admin@hospital.gov.in` / `Password123!`).
+   - Views live operational counts, department queues, doctor availability, active kiosks, and real-time audit trails.
+
+---
+
+## ðŸ“Š Implementation & Architectural Status
+
+### ðŸŸ¢ IMPLEMENTED
+- **Authoritative Department Clinical Mode**: MongoDB-backed authoritative mode (`MEDICAL` vs `AYUSH`) enforced in the backend. Client spoofing attempts are strictly overridden.
+- **Unified Department Configuration**: Consistent departments across models, seed, tests, and UI: Allopathic (`General Medicine`, `Cardiology`, `Pediatrics`, `Orthopedics`) and AYUSH (`Ayurveda`, `Siddha`, `Unani`).
+- **OPD State Machine**: Formal state machine (`REGISTERED` &rarr; `WAITING` &rarr; `HISTORY_IN_PROGRESS` &rarr; `HISTORY_COMPLETED` &rarr; `READY_FOR_DOCTOR` &rarr; `IN_CONSULTATION` &rarr; `COMPLETED`) with invalid transitions strictly rejected.
+- **Local OCR Extraction Engine**: Integrated local extraction using `tesseract.js` (with local traineddata and timeout protection) and `pdf-parse`. Standardized lifecycle statuses (`Processing`, `Successfully extracted`, `Low-confidence extraction`, `OCR unavailable`, `OCR failed`) with numerical confidence.
+- **FHIR R4 Bundle Export**: Generates NRCES / ABDM compliant `OPConsultRecord` FHIR R4 Document Bundles (`GET /api/patients/:id/fhir-bundle` and `GET /api/opd/visits/:id/fhir`) with `Composition`, `Patient`, `Encounter`, `Condition`, `Observation` (vitals), `MedicationRequest`, and `AllergyIntolerance` resources.
+- **Document Privacy Controls**: Documents default to `Private`. Patients cannot access private documents until doctor review and explicit release. Direct `/uploads` URL access is disabled with `403 Forbidden`. Cross-patient document isolation enforced at the API level.
+- **Side-by-Side OCR Verification**: Doctor modal viewing original PDF/image alongside editable structured entities (`testName`, `value`, `unit`, `referenceRange`, `impression`). Verification updates metadata while the physical uploaded file remains 100% immutable (SHA-256 verified).
+- **Cross-Patient Ownership Security**: Authenticated user identity (`req.user.id`) enforced on profile, OPD visits, clinical history, documents, prescriptions, FHIR bundles, and consent records.
+- **Public Registration Guardrails**: Public registration (`/register`) is restricted strictly to the `PATIENT` role; unauthorized requests for `DOCTOR` or `ADMIN` roles are rejected with `403 Forbidden`.
+- **Kiosk Security & Inactivity Reset**: 90-second inactivity timer with 15-second visual countdown modal, purging all sensitive memory, form state, and uploaded document references.
+- **Trilingual Localization (i18n)**: Full UI localization across English, Tamil, and Hindi for patient portals, consent, kiosk, validation, and clinical questionnaires.
+- **Doctor Consultation & Doctor-Confirmed Prescription**: Acuity-based doctor queue, clinical notes, SHA-256 tamper-evident doctor-confirmed prescriptions, and consultation closure.
+- **Real-Time WebSockets**: Socket.IO events for live queue synchronization (`new-patient`, `patient-update`, `report-released`, `consultation-completed`).
+
+### ðŸŸ¡ PARTIALLY IMPLEMENTED
+- **AI-Assisted Clinical Structuring**: Local Ollama (`deepseek-r1:8b`) integration via `ollamaService.js` with deterministic rule-based structuring fallback when Ollama is unavailable. Output is always labeled *"AI-Assisted Clinical Summary â€” Requires Doctor Review"*.
+
+### ðŸ”µ INTEGRATION-READY
+- **ABDM Gateway Service Interfaces**: Architectural interface (`backend/services/abdmService.js`) covering Milestone 1 (ABHA creation & verification), Milestone 2 (HIP care context linking), and Milestone 3 (HIU consent flow). Ready for NHA sandbox client credentials.
+- **Digital Signature Service**: Cryptographic service interface (`backend/services/digitalSignatureService.js`) calculating SHA-256 digests for prescriptions; ready for Class 3 USB PKI tokens or Aadhaar eSign ASP integration.
+- **ICD-10 Codification Service**: Clinical terminology interface (`backend/services/icd10Service.js`) with local fallback vocabulary; ready for official WHO ICD API credentials.
+- **Speech-to-Text Integration**: Web Speech API browser acoustic capture active; frontend and backend hooks configured for server-side Bhashini/AI4Bharat pipelines.
+
+### ðŸ”´ NOT IMPLEMENTED / SCOPE LIMITATIONS
+- **Live production ABDM Gateway Sandbox network connectivity** (requires official National Health Authority credentials).
+- **Live Bhashini / AI4Bharat server-side speech recognition pipeline** (uses browser Web Speech API with fallback touch chips).
+- **Production handwritten cursive medical prescription OCR engine** (uses printed document OCR engine; complex handwritten cursive doctor scripts require cloud vision models).
+- **Live physical USB PKI hardware token / Aadhaar eSign ASP network connectivity** (uses SHA-256 cryptographic digest calculation).
+- **Live WHO ICD-10 API network integration** (uses local clinical dictionary).
+
+---
+
+## ðŸ“œ License & Compliance
+
+Developed for Indian Public Healthcare and Government Hospital OPD workflow modernization. Adheres to standard clinical documentation guidelines and NRCES / ABDM FHIR R4 profile specifications.

@@ -23,7 +23,9 @@ export function getTranslation(key: string, lang: SupportedLanguage = 'en'): str
   const code = normalizeLanguageCode(lang);
   const dict = dictionaries[code] || dictionaries.en;
   
-  if (dict[key] !== undefined) return dict[key];
+  if (dict[key] !== undefined && typeof dict[key] === 'string') return dict[key];
+  if (dict.common?.[key] !== undefined && typeof dict.common[key] === 'string') return dict.common[key];
+  if (dict.kiosk?.[key] !== undefined && typeof dict.kiosk[key] === 'string') return dict.kiosk[key];
   
   // Resolve dot notation
   const parts = key.split('.');

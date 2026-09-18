@@ -60,6 +60,41 @@ const api = {
     }
   },
 
+  // Departments & Clinical Mode
+  async getDepartments() {
+    return this.request('/departments');
+  },
+
+  async getDepartment(id: string) {
+    return this.request(`/departments/${id}`);
+  },
+
+  // OPD Visit Lifecycle
+  async createOpdVisit(data: { departmentId: string; preferredLanguage?: string; visitType?: string; opdType?: string; reasonForVisit?: string }) {
+    return this.request('/opd/visits', { method: 'POST', data });
+  },
+
+  async getActiveOpdVisit() {
+    return this.request('/opd/visits/active');
+  },
+
+  async getOpdVisit(id: string) {
+    return this.request(`/opd/visits/${id}`);
+  },
+
+  async updateOpdVisitStatus(id: string, status: string) {
+    return this.request(`/opd/visits/${id}/status`, { method: 'PATCH', data: { status } });
+  },
+
+  // Consent
+  async recordConsent(consentData: { opdVisitId?: string; purpose?: string; consentGiven?: boolean; version?: string; language?: string }) {
+    return this.request('/consent', { method: 'POST', data: consentData });
+  },
+
+  async getPatientConsent(patientId: string) {
+    return this.request(`/consent/patient/${patientId}`);
+  },
+
   // Patient & Clinical Intake
   async opRegister(data: any) {
     return this.request('/patients/op-register', { method: 'POST', data });
@@ -116,6 +151,13 @@ const api = {
     return this.request(`/documents/${docId}/visibility`, {
       method: 'PATCH',
       data: { visibility }
+    });
+  },
+
+  async updateExtractedData(docId: string, updateData: { ocrText?: string; extractedData?: any; documentType?: string }) {
+    return this.request(`/documents/${docId}/extracted-data`, {
+      method: 'PATCH',
+      data: updateData
     });
   },
 
@@ -178,6 +220,15 @@ const api = {
   // AI & Ollama Status
   async getAIStatus() {
     return this.request('/ai/status');
+  },
+
+  // FHIR R4 Bundle Export
+  async getPatientFhirBundle(patientId: string) {
+    return this.request(`/patients/${patientId}/fhir-bundle`);
+  },
+
+  async getOpdVisitFhirBundle(visitId: string) {
+    return this.request(`/opd/visits/${visitId}/fhir`);
   }
 };
 

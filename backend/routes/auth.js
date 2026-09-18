@@ -16,6 +16,27 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'All required fields must be provided' });
     }
 
+    // Security Guardrail: Public self-registration is strictly for PATIENT role
+    if (role !== 'PATIENT') {
+      const authHeader = req.headers.authorization;
+      let isAdmin = false;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+          if (decoded && decoded.role === 'ADMIN') {
+            isAdmin = true;
+          }
+        } catch (e) {}
+      }
+
+      if (!isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'Public registration is restricted to PATIENT role. Staff accounts (Doctor, Admin) must be hospital-provisioned.'
+        });
+      }
+    }
+
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(409).json({ success: false, message: 'An account with this email already exists' });

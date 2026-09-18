@@ -20,16 +20,13 @@ export default function DoctorConsultationPage() {
   const [successMsg, setSuccessMsg] = useState<string>('');
 
   // Assessment Form
-  const [diagnosis, setDiagnosis] = useState<string>('Acute Bronchitis (ICD-10 J20)');
-  const [clinicalAssessment, setClinicalAssessment] = useState<string>('Patient presents with 3-day history of dry cough and low grade fever. Lungs clear to auscultation, throat mildly congested.');
-  const [doctorNotes, setDoctorNotes] = useState<string>('Advised warm saline gargles, adequate hydration, and symptomatic medication.');
-  const [followUp, setFollowUp] = useState<string>('Review after 5 days if fever persists');
+  const [diagnosis, setDiagnosis] = useState<string>('');
+  const [clinicalAssessment, setClinicalAssessment] = useState<string>('');
+  const [doctorNotes, setDoctorNotes] = useState<string>('');
+  const [followUp, setFollowUp] = useState<string>('');
 
   // Prescription Items
-  const [prescriptionItems, setPrescriptionItems] = useState<any[]>([
-    { medicine: 'Paracetamol 650mg', dosage: '650mg', frequency: '1-0-1 (Twice daily)', duration: '3 days', instructions: 'After food' },
-    { medicine: 'Levocetirizine 5mg', dosage: '5mg', frequency: '0-0-1 (Once at night)', duration: '5 days', instructions: 'After food' }
-  ]);
+  const [prescriptionItems, setPrescriptionItems] = useState<any[]>([]);
 
   const [newMed, setNewMed] = useState({ medicine: '', dosage: '', frequency: '1-0-1', duration: '5 days', instructions: 'After food' });
 
@@ -123,7 +120,7 @@ export default function DoctorConsultationPage() {
             <div>
               <h1 className="text-2xl font-black text-slate-900">Consultation Room &amp; E-Prescription</h1>
               <p className="text-xs text-slate-500 font-semibold">
-                Clinical assessment, ICD-10 diagnosis, physician notes, and prescription builder
+                Clinical assessment, doctor-confirmed diagnosis, physician notes, and prescription builder
               </p>
             </div>
           </div>
@@ -181,13 +178,13 @@ export default function DoctorConsultationPage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Definitive Diagnosis (ICD-10) *
+                Clinical Diagnosis / Provisional Assessment *
               </label>
               <input
                 type="text"
                 value={diagnosis}
                 onChange={(e) => setDiagnosis(e.target.value)}
-                placeholder="e.g. Essential Hypertension (I10)"
+                placeholder="e.g. Acute Bronchitis or Essential Hypertension"
                 className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-xl text-sm font-bold outline-none focus:border-emerald-600"
               />
             </div>

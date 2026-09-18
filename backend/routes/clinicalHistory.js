@@ -3,6 +3,8 @@ const router = express.Router();
 const ClinicalHistory = require('../models/ClinicalHistory');
 const Patient = require('../models/Patient');
 const Notification = require('../models/Notification');
+const OpdVisit = require('../models/OpdVisit');
+const Consent = require('../models/Consent');
 const ollamaService = require('../services/ollamaService');
 const { authenticateUser, requireRole, createAuditLog } = require('../middleware/auth');
 
@@ -80,6 +82,31 @@ router.post('/submit-history', authenticateUser, requireRole(['PATIENT']), async
     });
 
     await createAuditLog(userId, 'PATIENT', 'HISTORY_SUBMITTED', 'ClinicalHistory', clinicalHistory._id);
+
+    // Record formal Consent
+    if (consentGiven !== false) {
+      await Consent.create({
+        patientId: patient._id,
+        userId,
+        purpose: 'Clinical intake, AI-assisted history summarization, and physician OPD consultation',
+        consentGiven: true,
+        version: consentVersion || 'v1.0-ABDM-Ready',
+        language: req.body.language || 'English',
+        timestamp: new Date()
+      });
+    }
+
+    // Update active OPD visit status
+    const activeVisit = await OpdVisit.findOne({
+      patientId: patient._id,
+      status: { $in: ['REGISTERED', 'WAITING', 'HISTORY_IN_PROGRESS'] }
+    }).sort({ createdAt: -1 });
+
+    if (activeVisit) {
+      activeVisit.status = 'READY_FOR_DOCTOR';
+      activeVisit.historyCompletedAt = new Date();
+      await activeVisit.save();
+    }
 
     // Update patient status to Waiting for Doctor
     patient.currentStatus = 'Waiting for Doctor';

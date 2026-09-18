@@ -17,7 +17,12 @@ const prescriptionSchema = new mongoose.Schema({
   followUp: { type: String }, // e.g. 'After 1 week'
   generalAdvice: { type: String },
   date: { type: Date, default: Date.now },
-  status: { type: String, default: 'Active' }
+  status: { type: String, default: 'Active' },
+  digitalSignature: {
+    status: { type: String, default: 'Doctor Confirmed (PKI DSC Integration-Ready)' },
+    documentHash: { type: String },
+    signedAt: { type: Date, default: Date.now }
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Prescription', prescriptionSchema);

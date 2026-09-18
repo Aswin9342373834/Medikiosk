@@ -29,16 +29,10 @@ export const StepAyush: React.FC<StepAyushProps> = ({
           <h2 className="text-3xl font-black text-slate-900 mt-1">{getTranslation('ayush_mode', language)}</h2>
           <p className="text-slate-600 text-sm mt-1">Ayurvedic Dashavidha Pariksha &amp; Ahara-Vihara parameters</p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setFormData({ ...formData, ayushMode: !formData.ayushMode })}
-          className={`px-5 py-2.5 rounded-full font-extrabold text-sm transition shadow-sm ${
-            formData.ayushMode ? 'bg-green-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-          }`}
-        >
-          AYUSH MODE: {formData.ayushMode ? 'ACTIVE' : 'OFF'}
-        </button>
+        <div className="px-4 py-2 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-full font-extrabold text-xs flex items-center gap-1.5 shadow-sm">
+          <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+          <span>AYUSH Protocol: {formData.department || 'Authoritative Clinical Mode'}</span>
+        </div>
       </div>
 
       {formData.ayushMode ? (

@@ -7,18 +7,21 @@ import { VoiceInput } from '../../../components/VoiceInput';
 import { LanguageSwitcher } from '../../../components/LanguageSwitcher';
 import { useTranslation } from '../../../contexts/LanguageContext';
 import api from '../../../lib/api';
-import { 
-  Building2, Mic, ArrowRight, ArrowLeft, AlertTriangle, 
+import {
+  Building2, Mic, ArrowRight, ArrowLeft, AlertTriangle,
   CheckCircle2, Sparkles, Activity, ShieldCheck, HeartPulse, Stethoscope
 } from 'lucide-react';
 
 export default function PatientClinicalHistoryWizard() {
   const router = useRouter();
   const { t, language, speechLang } = useTranslation();
-  const [step, setStep] = useState<number>(1);
+  const [step, setStep] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [submissionResult, setSubmissionResult] = useState<any>(null);
+  const [activeVisit, setActiveVisit] = useState<any>(null);
+  const [checkingVisit, setCheckingVisit] = useState<boolean>(true);
+  const [consentAgreed, setConsentAgreed] = useState<boolean>(false);
 
   // Conversational clinical history state
   const [formData, setFormData] = useState({
@@ -38,7 +41,7 @@ export default function PatientClinicalHistoryWizard() {
     personalHistory: 'Non-smoker, non-alcoholic',
     socialHistory: '',
     reviewOfSystems: [] as string[],
-    
+
     // AYUSH
     department: 'General Medicine',
     ayushMode: false,
@@ -53,8 +56,39 @@ export default function PatientClinicalHistoryWizard() {
       samprapti: 'Pitta-Kapha vitiation'
     },
 
-    consentGiven: true
+    consentGiven: false
   });
+
+  // Verify authentication and fetch authoritative OPD visit
+  React.useEffect(() => {
+    const checkAuthAndVisit = async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (!token) {
+        router.push('/login?redirect=/patient/clinical-history');
+        return;
+      }
+
+      try {
+        const visitRes = await api.getActiveOpdVisit();
+        if (visitRes.success && visitRes.data) {
+          const v = visitRes.data;
+          setActiveVisit(v);
+          const isAyush = v.clinicalMode === 'AYUSH' || (v.department?.clinicalMode === 'AYUSH');
+          setFormData(prev => ({
+            ...prev,
+            department: v.department?.name || prev.department,
+            ayushMode: isAyush
+          }));
+        }
+      } catch (err) {
+        console.log('No active OPD visit or load error', err);
+      } finally {
+        setCheckingVisit(false);
+      }
+    };
+
+    checkAuthAndVisit();
+  }, [router]);
 
   const [attentionItems, setAttentionItems] = useState<string[]>([]);
   const [adaptiveQuestion, setAdaptiveQuestion] = useState<{
@@ -64,6 +98,21 @@ export default function PatientClinicalHistoryWizard() {
     question: 'How quickly did the symptom or pain start?',
     options: ['Suddenly within hours', 'Gradually over 2-3 days', 'Persistent for weeks', 'Comes and goes']
   });
+
+  const handleConsentProceed = async () => {
+    if (!consentAgreed) return;
+    setFormData(prev => ({ ...prev, consentGiven: true }));
+    try {
+      await api.recordConsent({
+        purpose: 'OPD_CONSULTATION',
+        consentGiven: true,
+        version: 'v1.0-ABDM'
+      });
+    } catch (e) {
+      console.warn('Consent recorded locally');
+    }
+    setStep(1);
+  };
 
   const handleComplaintChange = (val: string) => {
     setFormData(prev => ({ ...prev, presentingComplaint: val }));
@@ -110,13 +159,14 @@ export default function PatientClinicalHistoryWizard() {
     setLoading(true);
     setError('');
     try {
-      let token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       if (!token) {
-        const loginRes = await api.login({ email: 'patient@hospital.gov.in', password: 'Password123!' });
-        token = loginRes.token;
+        router.push('/login?redirect=/patient/clinical-history');
+        return;
       }
 
       const payload = {
+        opdVisitId: activeVisit?._id,
         presentingComplaint: formData.presentingComplaint || 'General OPD Evaluation',
         chiefComplaint: formData.presentingComplaint,
         historyOfPresentIllness: `${formData.presentingComplaint}. Onset: ${formData.onset}. Duration: ${formData.duration}. Severity: ${formData.severity}. Location: ${formData.location || 'General'}. Aggravating: ${formData.aggravatingFactors || 'None'}. Relieving: ${formData.relievingFactors || 'Rest'}.`,
@@ -202,7 +252,7 @@ export default function PatientClinicalHistoryWizard() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900">
-      
+
       {/* Top Header */}
       <div className="bg-[#0b1b3d] text-white py-2.5 px-3 sm:px-8 border-b border-blue-900">
         <div className="max-w-4xl mx-auto flex flex-wrap justify-between items-center text-xs gap-2">
@@ -221,7 +271,7 @@ export default function PatientClinicalHistoryWizard() {
       </div>
 
       <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col justify-center">
-        
+
         {/* Urgent Triage Warning */}
         {attentionItems.length > 0 && (
           <div className="mb-6 p-4 bg-red-50 border-2 border-red-300 rounded-2xl flex items-start gap-3 text-red-900">
@@ -238,8 +288,102 @@ export default function PatientClinicalHistoryWizard() {
           </div>
         )}
 
+        {/* Active Visit Banner */}
+        {activeVisit && (
+          <div className="mb-4 p-3.5 bg-blue-50 border border-blue-200 rounded-2xl flex flex-wrap items-center justify-between text-xs gap-2">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-blue-700" />
+              <span className="font-black text-blue-950">OPD Token: {activeVisit.tokenNumber}</span>
+              <span className="text-slate-600 font-semibold">• {activeVisit.department?.name || formData.department}</span>
+              {activeVisit.queueNumber && <span className="text-slate-500 font-bold">(Queue #{activeVisit.queueNumber})</span>}
+            </div>
+            <span className={`px-2.5 py-0.5 rounded-full font-black uppercase text-[10px] tracking-wider ${formData.ayushMode ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-blue-100 text-blue-800 border border-blue-300'}`}>
+              {formData.ayushMode ? 'AYUSH Clinical Mode' : 'General Medical Mode'}
+            </span>
+          </div>
+        )}
+
         <div className="bg-white rounded-3xl border-2 border-slate-300 shadow-xl p-6 sm:p-10 space-y-6">
-          
+
+          {/* STEP 0: EXPLICIT INFORMED CONSENT */}
+          {step === 0 && (
+            <div className="space-y-6">
+              <div className="border-b border-slate-200 pb-3">
+                <span className="text-xs font-black text-[#1e40af] uppercase tracking-wider">
+                  {t('consent.title')} • Step 0 / Digital Consent
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
+                  {language === 'ta' ? 'மருத்துவ வரலாறு ஒப்புதல்' : language === 'hi' ? 'चिकित्सीय इनटेक डिजिटल सहमति' : 'Digital Consent for Clinical Intake'}
+                </h2>
+                <p className="text-sm text-slate-600 font-medium">
+                  {language === 'ta'
+                    ? 'உங்கள் மருத்துவ விவரங்கள் மற்றும் அறிகுறிகளை பாதுகாப்பாக பதிவு செய்ய முன் ஒப்புதல் தேவை.'
+                    : language === 'hi'
+                    ? 'अपने लक्षणों और चिकित्सीय इतिहास को इलेक्ट्रॉनिक स्वास्थ्य रिकॉर्ड में दर्ज करने के लिए सहमति दें।'
+                    : 'Formal patient authorization to record clinical complaints, symptoms, and medical history (ABDM-ready consent architecture).'}
+                </p>
+              </div>
+
+              <div className="p-5 sm:p-6 bg-slate-50 border-2 border-slate-200 rounded-2xl space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed">
+                <div className="flex items-center gap-2.5 text-[#1e40af] font-black">
+                  <ShieldCheck className="w-5 h-5 text-[#1e40af]" />
+                  <span className="uppercase tracking-wider">Consent Purpose: OPD Consultation &amp; Triage Assessment</span>
+                </div>
+
+                <ul className="space-y-2 list-disc pl-5 text-slate-600">
+                  <li>
+                    <strong className="text-slate-900">Clinical Data Intake:</strong> Reported symptoms, duration, prior illnesses, and allergies will be stored in your official hospital OPD encounter.
+                  </li>
+                  <li>
+                    <strong className="text-slate-900">Assistive AI Support:</strong> Clinical NLP and rule-based triage assist with structuring information and red-flag warnings; the final diagnosis and care decisions are made exclusively by the attending doctor.
+                  </li>
+                  <li>
+                    <strong className="text-slate-900">Data Privacy:</strong> Medical records and diagnostic reports remain confidential and private, released only with physician authorization.
+                  </li>
+                </ul>
+              </div>
+
+              <div
+                className="p-4 bg-blue-50 border-2 border-blue-200 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-blue-100/60 transition"
+                onClick={() => setConsentAgreed(!consentAgreed)}
+              >
+                <input
+                  type="checkbox"
+                  id="consentCheckbox"
+                  checked={consentAgreed}
+                  onChange={(e) => setConsentAgreed(e.target.checked)}
+                  className="w-5 h-5 accent-[#1e40af] cursor-pointer"
+                />
+                <label htmlFor="consentCheckbox" className="text-xs sm:text-sm font-bold text-slate-900 cursor-pointer">
+                  {t('consent.agree')}
+                </label>
+              </div>
+
+              <div className="flex justify-between items-center pt-2">
+                <Link
+                  href="/patient"
+                  className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs hover:bg-slate-50 transition"
+                >
+                  {t('common.cancel')}
+                </Link>
+
+                <button
+                  type="button"
+                  disabled={!consentAgreed}
+                  onClick={handleConsentProceed}
+                  className={`px-8 py-3.5 font-black rounded-xl text-sm transition flex items-center gap-2 shadow ${
+                    consentAgreed
+                      ? 'bg-[#1e40af] hover:bg-blue-800 text-white'
+                      : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  <span>{t('common.continue')}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* STEP 1: CONVERSATIONAL PROMPT */}
           {step === 1 && (
             <div className="space-y-6">
@@ -303,7 +447,14 @@ export default function PatientClinicalHistoryWizard() {
                 />
               </div>
 
-              <div className="pt-2 flex justify-end">
+              <div className="pt-2 flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={() => setStep(0)}
+                  className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs hover:bg-slate-50 transition"
+                >
+                  {t('common.back')}
+                </button>
                 <button
                   type="button"
                   disabled={!formData.presentingComplaint.trim()}
@@ -408,7 +559,11 @@ export default function PatientClinicalHistoryWizard() {
                 <button type="button" onClick={() => setStep(1)} className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs">
                   {t('common.back')}
                 </button>
-                <button type="button" onClick={() => setStep(3)} className="px-8 py-3 bg-[#1e40af] hover:bg-blue-800 text-white font-black rounded-xl text-sm shadow">
+                <button
+                  type="button"
+                  onClick={() => setStep(formData.ayushMode ? 7 : 3)}
+                  className="px-8 py-3 bg-[#1e40af] hover:bg-blue-800 text-white font-black rounded-xl text-sm shadow"
+                >
                   {t('common.continue')}
                 </button>
               </div>
@@ -608,7 +763,7 @@ export default function PatientClinicalHistoryWizard() {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {[
-                  'Weight Loss / Appetite Change', 'Dizziness / Lightheadedness', 
+                  'Weight Loss / Appetite Change', 'Dizziness / Lightheadedness',
                   'Palpitations (Fast heartbeat)', 'Shortness of Breath on Exertion',
                   'Nausea or Vomiting', 'Acid Reflux / Heartburn',
                   'Frequent Urination (Polyuria)', 'Joint Swelling / Stiffness',
@@ -633,9 +788,9 @@ export default function PatientClinicalHistoryWizard() {
                 <button type="button" onClick={() => setStep(5)} className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs">
                   {t('common.back')}
                 </button>
-                <button 
-                  type="button" 
-                  onClick={() => setStep(formData.department.toLowerCase().includes('ayush') ? 7 : 8)} 
+                <button
+                  type="button"
+                  onClick={() => setStep(8)}
                   className="px-8 py-3 bg-[#1e40af] hover:bg-blue-800 text-white font-black rounded-xl text-sm shadow"
                 >
                   {t('common.continue')}
@@ -649,17 +804,20 @@ export default function PatientClinicalHistoryWizard() {
             <div className="space-y-6">
               <div className="border-b border-slate-200 pb-3">
                 <span className="text-xs font-black text-emerald-700 uppercase tracking-wider">
-                  {t('clinicalHistory.ayushTitle')}
+                  {t('clinicalHistory.ayushTitle')} • Ayurvedic Assessment
                 </span>
                 <h2 className="text-2xl font-black text-slate-900 mt-1">
                   {t('clinicalHistory.ayushSubtitle')}
                 </h2>
+                <p className="text-xs text-slate-600">
+                  Authoritative AYUSH OPD Clinical Parameters (Prakriti, Vikriti, Agni, Koshtha, Ahara &amp; Vihara)
+                </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    {t('clinicalHistory.prakriti')}
+                    1. {t('clinicalHistory.prakriti')} (Constitutional Type)
                   </label>
                   <select
                     value={formData.ayushData.prakriti}
@@ -675,7 +833,20 @@ export default function PatientClinicalHistoryWizard() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    {t('clinicalHistory.agni')}
+                    2. Vikriti (Current Imbalance / Dosha Vitiation)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.ayushData.vikriti}
+                    onChange={(e) => setFormData({ ...formData, ayushData: { ...formData.ayushData, vikriti: e.target.value } })}
+                    placeholder="e.g. Vata-Pitta Dushti, Agnimandya"
+                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    3. {t('clinicalHistory.agni')} (Digestive Fire)
                   </label>
                   <select
                     value={formData.ayushData.agni}
@@ -683,14 +854,56 @@ export default function PatientClinicalHistoryWizard() {
                     className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-bold bg-white"
                   >
                     <option value="Sama (Balanced)">Sama (Balanced)</option>
-                    <option value="Manda (Low)">Manda (Low / Sluggish)</option>
+                    <option value="Manda (Low / Sluggish)">Manda (Low / Sluggish)</option>
                     <option value="Tikshna (Hyperactive)">Tikshna (Hyperactive)</option>
+                    <option value="Visham (Irregular)">Visham (Irregular)</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    4. Koshtha (Bowel Habit)
+                  </label>
+                  <select
+                    value={formData.ayushData.koshtha}
+                    onChange={(e) => setFormData({ ...formData, ayushData: { ...formData.ayushData, koshtha: e.target.value } })}
+                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm font-bold bg-white"
+                  >
+                    <option value="Madhyama">Madhyama (Regular / Normal)</option>
+                    <option value="Krura">Krura (Constipated / Hard)</option>
+                    <option value="Mridu">Mridu (Soft / Frequent)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    5. Ahara (Dietary Habits)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.ayushData.ahara}
+                    onChange={(e) => setFormData({ ...formData, ayushData: { ...formData.ayushData, ahara: e.target.value } })}
+                    placeholder="e.g. Vegetarian, spicy food, irregular timing"
+                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    6. Vihara (Lifestyle &amp; Sleep)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.ayushData.vihara}
+                    onChange={(e) => setFormData({ ...formData, ayushData: { ...formData.ayushData, vihara: e.target.value } })}
+                    placeholder="e.g. Sedentary work, late night sleep, stress"
+                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm bg-white"
+                  />
                 </div>
               </div>
 
               <div className="flex justify-between pt-4 border-t border-slate-200">
-                <button type="button" onClick={() => setStep(6)} className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs">
+                <button type="button" onClick={() => setStep(2)} className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs">
                   {t('common.back')}
                 </button>
                 <button type="button" onClick={() => setStep(8)} className="px-8 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-xl text-sm shadow">
@@ -810,11 +1023,14 @@ export default function PatientClinicalHistoryWizard() {
                 <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
                   {t('common.status')}
                 </span>
-                <div className="text-3xl font-black text-[#1e40af]">
-                  Waiting for Doctor
+                <div className="text-2xl font-black text-[#1e40af]">
+                  Ready for Consultation
                 </div>
+                <p className="text-xs text-slate-700 font-bold">
+                  Token: <span className="text-[#1e40af] font-black">{activeVisit?.tokenNumber || submissionResult?.tokenNumber || 'Recorded'}</span> • {activeVisit?.department?.name || formData.department}
+                </p>
                 <p className="text-xs text-slate-500">
-                  OPD Room 104 • General Medicine
+                  Room: {activeVisit?.department?.roomNumber || 'OPD Room 104'}
                 </p>
               </div>
 

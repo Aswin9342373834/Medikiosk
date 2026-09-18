@@ -11,7 +11,8 @@ const Kiosk = require('../models/Kiosk');
 const ClinicalHistory = require('../models/ClinicalHistory');
 const MedicalDocument = require('../models/MedicalDocument');
 const Consultation = require('../models/Consultation');
-const Prescription = require('../models/Prescription');
+const OpdVisit = require('../models/OpdVisit');
+const Consent = require('../models/Consent');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/medikiosk';
 
@@ -32,24 +33,99 @@ async function seedDatabase() {
         state: 'Delhi',
         totalBeds: 2478,
         activeKiosks: 6,
-        departments: ['General Medicine', 'Cardiology', 'Pediatrics', 'Orthopedics', 'AYUSH / Ayurveda']
+        departments: [
+          'General Medicine', 'Cardiology', 'Pediatrics', 'Orthopedics',
+          'Ayurveda', 'Siddha', 'Unani'
+        ]
       });
       console.log('Hospital created:', hospital.name);
     }
 
-    // 2. Departments Seed
+    // 2. Departments Seed with Authoritative clinicalMode
     const deptData = [
-      { name: 'General Medicine', code: 'GEN-MED', activeDoctors: 6, waitingCount: 14, totalPatientsToday: 148 },
-      { name: 'Cardiology', code: 'CARDIO', activeDoctors: 3, waitingCount: 6, totalPatientsToday: 76 },
-      { name: 'Pediatrics', code: 'PEDIA', activeDoctors: 4, waitingCount: 9, totalPatientsToday: 95 },
-      { name: 'Orthopedics', code: 'ORTHO', activeDoctors: 3, waitingCount: 5, totalPatientsToday: 62 },
-      { name: 'AYUSH / Ayurveda', code: 'AYUSH', activeDoctors: 2, waitingCount: 4, totalPatientsToday: 42 }
+      {
+        name: 'General Medicine',
+        code: 'GEN-MED',
+        clinicalMode: 'MEDICAL',
+        active: true,
+        hospitalId: hospital._id,
+        description: 'Adult outpatient care, acute fevers, respiratory issues, and non-communicable diseases',
+        activeDoctors: 6,
+        waitingCount: 14,
+        totalPatientsToday: 148
+      },
+      {
+        name: 'Cardiology',
+        code: 'CARDIO',
+        clinicalMode: 'MEDICAL',
+        active: true,
+        hospitalId: hospital._id,
+        description: 'Cardiovascular assessment, ischemic heart disease, hypertension, and ECG evaluation',
+        activeDoctors: 3,
+        waitingCount: 6,
+        totalPatientsToday: 76
+      },
+      {
+        name: 'Pediatrics',
+        code: 'PEDIA',
+        clinicalMode: 'MEDICAL',
+        active: true,
+        hospitalId: hospital._id,
+        description: 'Maternal and child health, infant nutrition, developmental assessment, and immunizations',
+        activeDoctors: 4,
+        waitingCount: 9,
+        totalPatientsToday: 95
+      },
+      {
+        name: 'Orthopedics',
+        code: 'ORTHO',
+        clinicalMode: 'MEDICAL',
+        active: true,
+        hospitalId: hospital._id,
+        description: 'Fracture management, joint disorders, trauma recovery, and bone density',
+        activeDoctors: 3,
+        waitingCount: 5,
+        totalPatientsToday: 62
+      },
+      {
+        name: 'Ayurveda',
+        code: 'AYUR',
+        clinicalMode: 'AYUSH',
+        active: true,
+        hospitalId: hospital._id,
+        description: 'Traditional Ayurvedic clinical management, Prakriti/Agni assessment, and herbal therapy',
+        activeDoctors: 2,
+        waitingCount: 4,
+        totalPatientsToday: 42
+      },
+      {
+        name: 'Siddha',
+        code: 'SIDDHA',
+        clinicalMode: 'AYUSH',
+        active: true,
+        hospitalId: hospital._id,
+        description: 'Traditional Siddha clinical medicine, Vatham-Pitham-Kabam diagnosis, and herbal formulations',
+        activeDoctors: 2,
+        waitingCount: 3,
+        totalPatientsToday: 28
+      },
+      {
+        name: 'Unani',
+        code: 'UNANI',
+        clinicalMode: 'AYUSH',
+        active: true,
+        hospitalId: hospital._id,
+        description: 'Traditional Unani Tibb clinical therapy, Mizaj constitution, and holistic intake',
+        activeDoctors: 2,
+        waitingCount: 2,
+        totalPatientsToday: 21
+      }
     ];
 
     for (const d of deptData) {
-      await Department.findOneAndUpdate({ name: d.name }, d, { upsert: true });
+      await Department.findOneAndUpdate({ name: d.name }, d, { upsert: true, new: true });
     }
-    console.log('Departments seeded.');
+    console.log('Departments seeded with authoritative clinicalMode.');
 
     // 3. Kiosks Seed
     const kioskData = [
@@ -129,7 +205,7 @@ async function seedDatabase() {
       { userId: patientUser._id },
       {
         userId: patientUser._id,
-        name: 'Ramesh Kumar',
+        name: 'Demo Patient (DEMO ONLY)',
         age: 52,
         gender: 'Male',
         bloodGroup: 'B+',
@@ -188,6 +264,45 @@ async function seedDatabase() {
       { upsert: true, new: true }
     );
     console.log('Sample clinical history seeded.');
+
+    // 5. Seed Authoritative OpdVisit for Demo Patient
+    const genMedDept = await Department.findOne({ code: 'GEN-MED' });
+    const demoVisit = await OpdVisit.findOneAndUpdate(
+      { patientId: patient._id },
+      {
+        patientId: patient._id,
+        userId: patientUser._id,
+        departmentId: genMedDept._id,
+        departmentName: genMedDept.name,
+        clinicalMode: genMedDept.clinicalMode,
+        preferredLanguage: 'English',
+        tokenNumber: 'TKN-104',
+        opNumber: 'OPD-2026-918231',
+        status: 'WAITING',
+        visitType: 'New',
+        opdType: 'General OPD',
+        hospital: 'All India Institute of Medical Sciences (AIIMS)'
+      },
+      { upsert: true, new: true }
+    );
+    console.log('Sample OPD visit seeded (TKN-104 - WAITING).');
+
+    // 6. Seed Consent Record
+    await Consent.findOneAndUpdate(
+      { patientId: patient._id },
+      {
+        patientId: patient._id,
+        userId: patientUser._id,
+        opdVisitId: demoVisit._id,
+        purpose: 'Clinical intake, AI-assisted history summarization, and physician OPD consultation',
+        consentGiven: true,
+        version: 'v1.0-ABDM-Ready',
+        language: 'English',
+        timestamp: new Date()
+      },
+      { upsert: true, new: true }
+    );
+    console.log('Sample consent record seeded.');
 
     // Demo Released Document
     await MedicalDocument.findOneAndUpdate(

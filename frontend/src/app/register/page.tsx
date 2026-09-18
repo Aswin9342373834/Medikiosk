@@ -73,20 +73,20 @@ export default function RegisterPage() {
                   required
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  placeholder="Ramesh"
+                  placeholder="First Name"
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-hospital-500 outline-none"
                 />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {language === 'ta' ? 'கடைசி பெயர்' : language === 'hi' ? 'अंतिम नाम' : 'Last Name'}
+                  {language === 'ta' ? 'கடைசி பெயர்' : language === 'hi' ? 'அंतिम नाम' : 'Last Name'}
                 </label>
                 <input
                   type="text"
                   required
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  placeholder="Kumar"
+                  placeholder="Last Name"
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-hospital-500 outline-none"
                 />
               </div>
@@ -101,7 +101,7 @@ export default function RegisterPage() {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="ramesh@email.com"
+                placeholder="patient@example.com"
                 className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-hospital-500 outline-none"
               />
             </div>
@@ -133,53 +133,24 @@ export default function RegisterPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {t('authentication.role')}
-                </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-hospital-500 outline-none bg-white"
-                >
-                  <option value="PATIENT">Patient (நோயாளி / मरीज़)</option>
-                  <option value="DOCTOR">Doctor (மருத்துவர் / डॉक्टर)</option>
-                  <option value="ADMIN">Admin (நிர்வாகம் / प्रशासन)</option>
-                </select>
-              </div>
-
-              {formData.role === 'PATIENT' ? (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {t('authentication.abhaId')} ({t('common.optional')})
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.abhaId}
-                    onChange={(e) => setFormData({ ...formData, abhaId: e.target.value })}
-                    placeholder="Auto-generated if empty"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-hospital-500 outline-none"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {t('patient.department')}
-                  </label>
-                  <select
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-hospital-500 outline-none bg-white"
-                  >
-                    <option value="General Medicine">General Medicine</option>
-                    <option value="Cardiology">Cardiology</option>
-                    <option value="Pediatrics">Pediatrics</option>
-                    <option value="Orthopedics">Orthopedics</option>
-                    <option value="AYUSH / Ayurveda">AYUSH / Ayurveda</option>
-                  </select>
-                </div>
-              )}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {t('authentication.abhaId')} ({t('common.optional')})
+              </label>
+              <input
+                type="text"
+                value={formData.abhaId}
+                onChange={(e) => setFormData({ ...formData, abhaId: e.target.value })}
+                placeholder="Auto-generated if empty"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-hospital-500 outline-none font-mono"
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                {language === 'ta'
+                  ? 'பொது பதிவு நோயாளிகளுக்கு மட்டுமே. மருத்துவ ஊழியர் கணக்குகள் மருத்துவமனை நிர்வாகத்தால் வழங்கப்படுகின்றன.'
+                  : language === 'hi'
+                  ? 'सार्वजनिक पंजीकरण केवल मरीजों के लिए है। कर्मचारी खाते अस्पताल द्वारा प्रदान किए जाते हैं।'
+                  : 'Public registration is for patients only. Clinical staff and admin accounts are hospital-provisioned.'}
+              </p>
             </div>
 
             <button
