@@ -49,11 +49,26 @@ const api = {
       return response.data;
     } catch (error: any) {
       if (error.response) {
-        // Backend returned an error response (4xx, 5xx)
-        const serverMessage = error.response.data?.message || `Request failed with status ${error.response.status}`;
+        // Backend or proxy returned an error response (4xx, 5xx)
+        const isVercelPrivateDns =
+          error.response.status === 404 &&
+          (error.response.headers?.['x-vercel-error'] === 'DNS_HOSTNAME_RESOLVED_PRIVATE' ||
+           (typeof error.response.data === 'string' && error.response.data.includes('DNS_HOSTNAME_RESOLVED_PRIVATE')));
+
+        let serverMessage = error.response.data?.message;
+        if (!serverMessage) {
+          if (isVercelPrivateDns) {
+            serverMessage = 'Backend Not Connected: Vercel cannot reach http://127.0.0.1:5000. Please configure NEXT_PUBLIC_API_URL in Vercel Project Settings with your live HTTPS backend URL.';
+          } else if (error.response.status === 404) {
+            serverMessage = `Endpoint not found (404) at ${API_BASE_URL}${endpoint}. Please verify that the backend is online and NEXT_PUBLIC_API_URL is configured in Vercel.`;
+          } else {
+            serverMessage = `Request failed with status ${error.response.status}`;
+          }
+        }
+
         const err: any = new Error(serverMessage);
         err.status = error.response.status;
-        err.code = error.response.data?.code;
+        err.code = isVercelPrivateDns ? 'DNS_HOSTNAME_RESOLVED_PRIVATE' : error.response.data?.code;
         err.response = error.response;
         throw err;
       } else if (error.request) {
