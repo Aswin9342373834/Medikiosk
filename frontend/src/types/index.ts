@@ -202,10 +202,38 @@ export interface HospitalDepartment {
   _id: string;
   name: string;
   code: string;
+  clinicalMode?: 'MEDICAL' | 'AYUSH';
+  roomNumber?: string;
   headOfDepartment?: string;
   activeDoctors: number;
   waitingCount: number;
   totalPatientsToday: number;
+}
+
+export interface OpdVisit {
+  _id: string;
+  patientId: string | Patient;
+  userId: string;
+  departmentId: string | HospitalDepartment;
+  departmentName: string;
+  doctorId?: string;
+  clinicalMode: 'MEDICAL' | 'AYUSH';
+  preferredLanguage?: string;
+  tokenNumber: string;
+  opNumber: string;
+  status: string;
+  visitType?: string;
+  opdType?: string;
+  hospital?: string;
+  queueNumber?: number;
+  registeredAt?: string;
+  createdAt?: string;
+  department?: {
+    name?: string;
+    code?: string;
+    roomNumber?: string;
+    clinicalMode?: 'MEDICAL' | 'AYUSH';
+  };
 }
 
 export interface KioskDevice {

@@ -1,7 +1,26 @@
 import axios from 'axios';
 
-const rawBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-export const API_BASE_URL = rawBaseUrl.endsWith('/api') ? rawBaseUrl : `${rawBaseUrl.replace(/\/$/, '')}/api`;
+const getBaseUrl = (): string => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && envUrl.trim() !== '') {
+    const cleanUrl = envUrl.trim().replace(/\/$/, '');
+    return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+  }
+
+  // Client-side fallback check
+  if (typeof window !== 'undefined') {
+    const { hostname } = window.location;
+    // When running on deployed domains (like *.vercel.app) without an explicit API URL
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      // Return relative /api path so Next.js rewrites can proxy to backend
+      return '/api';
+    }
+  }
+
+  return 'http://localhost:5000/api';
+};
+
+export const API_BASE_URL = getBaseUrl();
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -29,8 +48,28 @@ const api = {
       });
       return response.data;
     } catch (error: any) {
-      const errMsg = error.response?.data?.message || error.message || 'Network request failed';
-      throw new Error(errMsg);
+      if (error.response) {
+        // Backend returned an error response (4xx, 5xx)
+        const serverMessage = error.response.data?.message || `Request failed with status ${error.response.status}`;
+        const err: any = new Error(serverMessage);
+        err.status = error.response.status;
+        err.code = error.response.data?.code;
+        err.response = error.response;
+        throw err;
+      } else if (error.request) {
+        // No response received (offline, DNS failure, connection refused, CORS rejected, or mixed content blocked)
+        const isMixedContent = typeof window !== 'undefined' && window.location.protocol === 'https:' && API_BASE_URL.startsWith('http:');
+        let errorMsg = 'Unable to connect to the MediKiosk server. Please check your network connection or verify that the backend is online.';
+        if (isMixedContent) {
+          errorMsg = 'Security Error: HTTPS deployment cannot communicate with an insecure HTTP backend. Please configure NEXT_PUBLIC_API_URL in Vercel to a secure HTTPS backend endpoint.';
+        }
+        const err: any = new Error(errorMsg);
+        err.isNetworkError = true;
+        err.code = 'NETWORK_ERROR';
+        throw err;
+      } else {
+        throw new Error(error.message || 'An unexpected request error occurred.');
+      }
     }
   },
 
@@ -76,6 +115,10 @@ const api = {
 
   async getActiveOpdVisit() {
     return this.request('/opd/visits/active');
+  },
+
+  async getOpdVisits() {
+    return this.request('/opd/visits');
   },
 
   async getOpdVisit(id: string) {

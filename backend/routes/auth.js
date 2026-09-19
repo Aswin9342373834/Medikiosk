@@ -12,12 +12,27 @@ router.post('/register', async (req, res) => {
   try {
     const { email, password, firstName, lastName, role, phone, abhaId, department, specialization } = req.body;
     
-    if (!email || !password || !firstName || !lastName || !role) {
-      return res.status(400).json({ success: false, message: 'All required fields must be provided' });
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanFirstName = (firstName || '').trim();
+    const cleanLastName = (lastName || '').trim();
+    const cleanRole = (role || 'PATIENT').trim().toUpperCase();
+
+    if (!cleanEmail || !password || !cleanFirstName || !cleanLastName || !cleanRole) {
+      return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'All required fields must be provided' });
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Please enter a valid email address' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Password must be at least 6 characters long' });
     }
 
     // Security Guardrail: Public self-registration is strictly for PATIENT role
-    if (role !== 'PATIENT') {
+    if (cleanRole !== 'PATIENT') {
       const authHeader = req.headers.authorization;
       let isAdmin = false;
       if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -32,43 +47,44 @@ router.post('/register', async (req, res) => {
       if (!isAdmin) {
         return res.status(403).json({
           success: false,
+          code: 'FORBIDDEN',
           message: 'Public registration is restricted to PATIENT role. Staff accounts (Doctor, Admin) must be hospital-provisioned.'
         });
       }
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await User.findOne({ email: cleanEmail });
     if (existingUser) {
-      return res.status(409).json({ success: false, message: 'An account with this email already exists' });
+      return res.status(409).json({ success: false, code: 'DUPLICATE_EMAIL', message: 'An account with this email already exists' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
-      email: email.toLowerCase(),
+      email: cleanEmail,
       password: hashedPassword,
-      firstName,
-      lastName,
-      role,
-      phone
+      firstName: cleanFirstName,
+      lastName: cleanLastName,
+      role: cleanRole,
+      phone: phone ? phone.trim() : undefined
     });
 
     let profileData = null;
 
-    if (role === 'PATIENT') {
+    if (cleanRole === 'PATIENT') {
       const generatedAbha = abhaId || `ABHA-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`;
       profileData = await Patient.create({
         userId: user._id,
-        name: `${firstName} ${lastName}`,
+        name: `${cleanFirstName} ${cleanLastName}`,
         abhaId: generatedAbha,
         uhid: `UHID-GH-${Date.now().toString().slice(-6)}`,
-        contactNumber: phone,
+        contactNumber: phone ? phone.trim() : undefined,
         currentStatus: 'Registered'
       });
       await createAuditLog(user._id, 'PATIENT', 'PATIENT_CREATED', 'Patient', profileData._id);
-    } else if (role === 'DOCTOR') {
+    } else if (cleanRole === 'DOCTOR') {
       profileData = await Doctor.create({
         userId: user._id,
-        name: `Dr. ${firstName} ${lastName}`,
+        name: `Dr. ${cleanFirstName} ${cleanLastName}`,
         licenseNumber: `MCI-${Math.floor(100000 + Math.random() * 900000)}`,
         department: department || 'General Medicine',
         specialization: specialization || 'Consultant Physician'
@@ -91,12 +107,12 @@ router.post('/register', async (req, res) => {
     });
   } catch (error) {
     if (error.name === 'ValidationError') {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: error.message });
     }
     if (error.code === 11000) {
-      return res.status(409).json({ success: false, message: 'An account with this email already exists' });
+      return res.status(409).json({ success: false, code: 'DUPLICATE_EMAIL', message: 'An account with this email already exists' });
     }
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, code: 'SERVER_ERROR', message: 'Registration service error: ' + error.message });
   }
 });
 
@@ -104,18 +120,20 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required' });
+    const cleanEmail = (email || '').trim().toLowerCase();
+
+    if (!cleanEmail || !password) {
+      return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Email and password are required' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: cleanEmail });
     if (!user) {
-      return res.status(400).json({ success: false, message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, code: 'INVALID_CREDENTIALS', message: 'Email or password is incorrect.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ success: false, message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, code: 'INVALID_CREDENTIALS', message: 'Email or password is incorrect.' });
     }
 
     let patientProfile = null;
@@ -145,7 +163,7 @@ router.post('/login', async (req, res) => {
       } 
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, code: 'SERVER_ERROR', message: 'Authentication service temporarily unavailable. Please try again.' });
   }
 });
 

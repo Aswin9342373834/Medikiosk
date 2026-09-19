@@ -148,7 +148,7 @@ export default function PatientRecordsPage() {
 
   const notificationsList = [
     { title: 'Prescription Ready', time: 'Today', desc: 'Physician signed your active outpatient e-prescription. Please visit the pharmacy window.' },
-    { title: 'OPD Queue Active', time: 'Today', desc: `Your token ${patient?.tokenNumber || 'TKN-104'} is currently active in the waiting queue.` },
+    { title: 'OPD Queue Active', time: 'Today', desc: patient?.tokenNumber ? `Your token ${patient.tokenNumber} is currently active in the waiting queue.` : 'Your outpatient visit is registered and queued for consultation.' },
     { title: 'ABDM Health Record Synced', time: 'Yesterday', desc: 'Your Ayushman Bharat Health Account has been verified for paperless health exchange.' }
   ];
 
@@ -254,7 +254,7 @@ export default function PatientRecordsPage() {
               <div className="bg-white p-6 rounded-2xl border-2 border-slate-200 shadow-sm space-y-2">
                 <span className="text-xs font-bold text-slate-400 uppercase">Current OPD Status</span>
                 <h3 className="text-xl font-black text-[#1e40af]">{patient?.currentStatus || 'Waiting for Doctor'}</h3>
-                <p className="text-xs text-slate-500">Token {patient?.tokenNumber || 'TKN-104'} in queue</p>
+                <p className="text-xs text-slate-500">{patient?.tokenNumber ? `Token ${patient.tokenNumber} in queue` : 'Consultation queued'}</p>
               </div>
             </div>
 

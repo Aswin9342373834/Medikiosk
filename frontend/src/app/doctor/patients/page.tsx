@@ -123,8 +123,8 @@ export default function DoctorPatientsQueuePage() {
 
           <div className="bg-white p-5 rounded-2xl border-2 border-slate-200 shadow-sm flex justify-between items-center">
             <div>
-              <span className="text-xs font-bold text-slate-400 uppercase">Department</span>
-              <div className="text-lg font-black text-slate-900">General Medicine</div>
+              <span className="text-xs font-bold text-slate-400 uppercase">OPD Stream</span>
+              <div className="text-lg font-black text-slate-900">All Clinics (Live)</div>
             </div>
             <Stethoscope className="w-8 h-8 text-emerald-600" />
           </div>
@@ -185,6 +185,7 @@ export default function DoctorPatientsQueuePage() {
                     <th className="p-4">Patient Name</th>
                     <th className="p-4">Age / Gender</th>
                     <th className="p-4">Department</th>
+                    <th className="p-4">Clinical Mode</th>
                     <th className="p-4">Presenting Complaint</th>
                     <th className="p-4">Priority</th>
                     <th className="p-4">Status</th>
@@ -195,16 +196,25 @@ export default function DoctorPatientsQueuePage() {
                   {filteredQueue.map((pt) => (
                     <tr key={pt.id || pt.patientId} className="hover:bg-slate-50/70">
                       <td className="p-4 font-mono font-black text-[#1e40af] text-sm">
-                        {pt.token || 'TKN-OPD'}
+                        {pt.token || pt.tokenNumber || '—'}
                       </td>
                       <td className="p-4 font-black text-slate-900 text-sm">
-                        {pt.patientName}
+                        {pt.patientName || pt.name}
                       </td>
                       <td className="p-4 text-slate-600">
-                        {pt.age ? `${pt.age} yrs` : '52 yrs'} • {pt.gender || 'Male'}
+                        {pt.age ? `${pt.age} yrs` : '—'} • {pt.gender || '—'}
                       </td>
                       <td className="p-4 text-slate-800 font-semibold">
-                        {pt.department || 'General Medicine'}
+                        {pt.department || '—'}
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
+                          pt.clinicalMode === 'AYUSH' 
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                            : 'bg-blue-100 text-[#1e40af] border-blue-300'
+                        }`}>
+                          {pt.clinicalMode || 'MEDICAL'}
+                        </span>
                       </td>
                       <td className="p-4 max-w-xs truncate text-slate-700">
                         {pt.complaint}

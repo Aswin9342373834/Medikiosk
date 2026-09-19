@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Navbar } from '../../components/Navbar';
 import api from '../../lib/api';
 import { 
@@ -9,6 +10,7 @@ import {
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState<any>({
     totalPatients: 0,
     todayPatients: 0,
@@ -52,6 +54,26 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      const userStr = localStorage.getItem('user');
+      if (!token || !userStr) {
+        router.push('/login');
+        return;
+      }
+      try {
+        const u = JSON.parse(userStr);
+        if (u.role && u.role !== 'ADMIN') {
+          if (u.role === 'DOCTOR') router.push('/doctor');
+          else router.push('/patient');
+          return;
+        }
+      } catch (e) {
+        router.push('/login');
+        return;
+      }
+    }
+
     fetchAdminData();
   }, []);
 

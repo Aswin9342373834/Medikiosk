@@ -99,6 +99,26 @@ export default function PatientDashboardPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      const userStr = localStorage.getItem('user');
+      if (!token || !userStr) {
+        router.push('/login');
+        return;
+      }
+      try {
+        const u = JSON.parse(userStr);
+        if (u.role && u.role !== 'PATIENT') {
+          if (u.role === 'DOCTOR') router.push('/doctor');
+          else if (u.role === 'ADMIN') router.push('/admin');
+          return;
+        }
+      } catch (e) {
+        router.push('/login');
+        return;
+      }
+    }
+
     fetchPatientData();
 
     const socket = getSocket();
@@ -274,81 +294,152 @@ export default function PatientDashboardPage() {
 
               {/* 3. KIOSK / OPD VISIT FUNCTIONALITY */}
               {hasActiveOpVisit ? (
-                /* EXISTING PATIENT CARD: CURRENT OP VISIT */
-                <div className="bg-white rounded-3xl border-2 border-[#1e40af] p-6 sm:p-8 shadow-lg space-y-6">
-                  <div className="flex flex-wrap justify-between items-start border-b border-slate-200 pb-4 gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-blue-100 text-[#1e40af] rounded-2xl flex items-center justify-center font-black">
-                        <FileCheck2 className="w-7 h-7" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="bg-blue-100 text-[#1e40af] text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase">
-                            {t('patient.activeVisit')}
-                          </span>
-                          <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${activeVisit?.clinicalMode === 'AYUSH' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
-                            {activeVisit?.clinicalMode === 'AYUSH' ? 'AYUSH OPD' : 'Medical OPD'}
-                          </span>
+                <>
+                  {/* EXISTING PATIENT CARD: CURRENT OP VISIT */}
+                  <div className="bg-white rounded-3xl border-2 border-[#1e40af] p-6 sm:p-8 shadow-lg space-y-6">
+                    <div className="flex flex-wrap justify-between items-start border-b border-slate-200 pb-4 gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-blue-100 text-[#1e40af] rounded-2xl flex items-center justify-center font-black">
+                          <FileCheck2 className="w-7 h-7" />
                         </div>
-                        <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">
-                          {t('patient.currentOpVisit')}
-                        </h3>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="bg-blue-100 text-[#1e40af] text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                              CURRENT ACTIVE VISIT
+                            </span>
+                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${activeVisit?.clinicalMode === 'AYUSH' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                              {activeVisit?.clinicalMode === 'AYUSH' ? 'AYUSH OPD' : 'MEDICAL OPD'}
+                            </span>
+                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase border flex items-center gap-1 ${
+                              activeVisit?.clinicalMode === 'AYUSH' 
+                                ? 'bg-emerald-50 text-emerald-900 border-emerald-300' 
+                                : 'bg-blue-50 text-blue-900 border-blue-300'
+                            }`}>
+                              {activeVisit?.clinicalMode === 'AYUSH' ? <HeartPulse className="w-3 h-3 text-emerald-700" /> : <Stethoscope className="w-3 h-3 text-[#1e40af]" />}
+                              <span>{t('common.clinicalMode')}: {activeVisit?.clinicalMode === 'AYUSH' ? t('common.ayush') : t('common.medical')}</span>
+                            </span>
+                          </div>
+                          <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+                            {t('patient.currentOpVisit')}
+                          </h3>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('patient.opNumber')}</span>
+                        <span className="font-mono font-black text-sm text-[#1e40af]">{activeVisit?.opNumber || patient?.opNumber || '—'}</span>
                       </div>
                     </div>
 
-                    <div className="text-right">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('patient.opNumber')}</span>
-                      <span className="font-mono font-black text-sm text-[#1e40af]">{activeVisit?.opNumber || patient?.opNumber || 'OPD-ACTIVE'}</span>
+                    {/* Visit Telemetry Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('patient.tokenNumber')}</span>
+                        <strong className="text-2xl font-black text-[#1e40af] block">{activeVisit?.tokenNumber || patient?.tokenNumber || '—'}</strong>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('patient.department')}</span>
+                        <strong className="text-sm font-black text-slate-900 block">{activeVisit?.departmentName || activeVisit?.department?.name || patient?.department || '—'}</strong>
+                        <span className="text-[10px] text-slate-500 block">{activeVisit?.department?.roomNumber || (activeVisit?.clinicalMode === 'AYUSH' ? 'Room 201' : 'Room 104')}</span>
+                      </div>
+
+                      {/* Dedicated Standout CLINICAL MODE Field */}
+                      <div className={`p-3 rounded-xl border-2 flex flex-col justify-center ${
+                        activeVisit?.clinicalMode === 'AYUSH' 
+                          ? 'bg-emerald-50 border-emerald-400 text-emerald-950' 
+                          : 'bg-blue-50 border-blue-400 text-blue-950'
+                      }`}>
+                        <span className="text-[10px] font-black uppercase tracking-wider block opacity-80">
+                          {t('common.clinicalMode')}
+                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {activeVisit?.clinicalMode === 'AYUSH' ? (
+                            <HeartPulse className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                          ) : (
+                            <Stethoscope className="w-4 h-4 text-[#1e40af] flex-shrink-0" />
+                          )}
+                          <strong className={`text-base font-black tracking-wide ${
+                            activeVisit?.clinicalMode === 'AYUSH' ? 'text-emerald-800' : 'text-[#1e40af]'
+                          }`}>
+                            {activeVisit?.clinicalMode || 'MEDICAL'}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('common.status')}</span>
+                        <span className="inline-block bg-blue-100 text-[#1e40af] font-black px-2 py-0.5 rounded text-[11px] mt-1">
+                          {activeVisit?.status || 'WAITING'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('patient.queuePosition')}</span>
+                        <span className="inline-block bg-amber-100 text-amber-900 font-black px-2 py-0.5 rounded text-[11px] mt-1">
+                          {activeVisit?.queueNumber ? `#${activeVisit.queueNumber} in Queue` : 'Assigned to Queue'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions Row: Start New Visit AND Continue Active Visit */}
+                    <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+                      <p className="text-xs text-slate-600 font-medium">
+                        {language === 'ta'
+                          ? 'உங்கள் டோக்கன் செயலில் உள்ளது. மருத்துவ வரலாற்றுப் பதிவை மதிப்பாய்வு செய்யலாம் அல்லது தொடரலாம்.'
+                          : language === 'hi'
+                          ? 'आपका टोकन सक्रिय है। आप अपनी चिकित्सीय जानकारी की समीक्षा कर सकते हैं या जारी रख सकते हैं।'
+                          : 'Your token is active in the physician queue. You can continue clinical intake or start a new OPD visit.'}
+                      </p>
+
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href="/patient/op-registration"
+                          className="px-5 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs sm:text-sm rounded-xl transition flex items-center gap-2 shadow-md hover:shadow-lg"
+                        >
+                          <PlusCircle className="w-4 h-4" />
+                          <span>{t('patient.startNewOpdVisit')}</span>
+                        </Link>
+
+                        <Link
+                          href="/patient/clinical-history"
+                          className="px-6 py-3.5 bg-[#1e40af] hover:bg-blue-800 text-white font-black text-xs sm:text-sm rounded-xl transition flex items-center gap-2 shadow-md"
+                        >
+                          <span>{t('patient.continueVisit')}</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </Link>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Visit Telemetry Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 text-xs">
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('patient.tokenNumber')}</span>
-                      <strong className="text-2xl font-black text-[#1e40af] block">{activeVisit?.tokenNumber || 'Active'}</strong>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('patient.department')}</span>
-                      <strong className="text-sm font-black text-slate-900 block">{activeVisit?.department?.name || 'General Medicine'}</strong>
-                      <span className="text-[10px] text-slate-500">{activeVisit?.department?.roomNumber || 'Room 104'}</span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">{t('common.status')}</span>
-                      <span className="inline-block bg-blue-100 text-[#1e40af] font-black px-2 py-0.5 rounded text-[11px] mt-1">
-                        {activeVisit?.status || 'WAITING'}
+                  {/* DISTINCT SECTION: START NEW OPD VISIT (Always accessible) */}
+                  <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 rounded-3xl border-2 border-emerald-300 p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                    <div className="space-y-1 max-w-xl">
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider inline-block">
+                        START NEW OPD VISIT
                       </span>
+                      <h4 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+                        {t('patient.startNewOpdVisit')} • Department Selection
+                      </h4>
+                      <p className="text-xs text-slate-600 font-medium">
+                        {language === 'ta'
+                          ? 'புதிய மருத்துவ அல்லது ஆயுஷ் துறை (ஆயுர்வேதம், சித்தா, யுனானி) ஆலோசனையைத் தேர்ந்தெடுக்கவும்.'
+                          : language === 'hi'
+                          ? 'नया विभाग (आयुर्वेद, सामान्य चिकित्सा, बाल रोग) चुनें और नई ओपीडी विज़िट शुरू करें।'
+                          : 'Need to consult another specialty (Allopathy or AYUSH: Ayurveda, Siddha, Unani)? Register a new OPD visit.'}
+                      </p>
                     </div>
-
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Queue Position</span>
-                      <span className="inline-block bg-amber-100 text-amber-900 font-black px-2 py-0.5 rounded text-[11px] mt-1">
-                        {activeVisit?.queueNumber ? `#${activeVisit.queueNumber} in Queue` : 'Assigned to Queue'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Continue Visit Button */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
-                    <p className="text-xs text-slate-600 font-medium">
-                      {language === 'ta'
-                        ? 'உங்கள் டோக்கன் செயலில் உள்ளது. மருத்துவ வரலாற்றுப் பதிவை மதிப்பாய்வு செய்யலாம் அல்லது தொடரலாம்.'
-                        : language === 'hi'
-                        ? 'आपका टोकन सक्रिय है। आप अपनी चिकित्सीय जानकारी की समीक्षा कर सकते हैं या जारी रख सकते हैं।'
-                        : 'Your token is active in the physician queue. You can review or complete clinical history intake.'}
-                    </p>
 
                     <Link
-                      href="/patient/clinical-history"
-                      className="px-8 py-3.5 bg-[#1e40af] hover:bg-blue-800 text-white font-black text-sm rounded-xl transition flex items-center gap-2 shadow-md"
+                      href="/patient/op-registration"
+                      className="px-7 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-sm rounded-xl transition flex items-center gap-2 shadow-md hover:shadow-lg"
                     >
-                      <span>{t('patient.continueVisit')}</span>
+                      <PlusCircle className="w-5 h-5" />
+                      <span>{t('patient.startNewOpdVisit')}</span>
                       <ArrowRight className="w-4 h-4" />
                     </Link>
                   </div>
-                </div>
+                </>
               ) : (
                 /* NEW PATIENT CARD: START A NEW OPD VISIT */
                 <div className="bg-white rounded-3xl border-2 border-emerald-600 p-6 sm:p-8 shadow-lg space-y-6">
@@ -441,30 +532,46 @@ export default function PatientDashboardPage() {
           {/* TAB 2: OP VISITS */}
           {activeTab === 'visits' && (
             <div className="bg-white rounded-3xl border-2 border-slate-300 p-6 sm:p-8 shadow-sm space-y-6">
-              <div className="flex justify-between items-center border-b pb-4">
+              <div className="flex flex-wrap justify-between items-center border-b pb-4 gap-3">
                 <div>
                   <h3 className="text-xl font-black text-slate-900">{t('navigation.opVisits')}</h3>
-                  <p className="text-xs text-slate-500">Government OPD Consultation Token Slips</p>
+                  <p className="text-xs text-slate-500">Government OPD Consultation Token Slips & History</p>
                 </div>
-                <Link
-                  href="/patient/op-registration"
-                  className="px-4 py-2 bg-[#1e40af] text-white font-bold text-xs rounded-xl hover:bg-blue-800 transition"
-                >
-                  {t('patient.startNewOpdVisit')}
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/patient/op-visits"
+                    className="px-4 py-2 border border-slate-300 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition"
+                  >
+                    View All History &rarr;
+                  </Link>
+                  <Link
+                    href="/patient/op-registration"
+                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>{t('patient.startNewOpdVisit')}</span>
+                  </Link>
+                </div>
               </div>
 
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-wrap justify-between items-center gap-4">
                 <div>
                   <span className="text-[10px] text-slate-400 font-bold uppercase">{t('patient.tokenNumber')}</span>
-                  <p className="text-lg font-black text-[#1e40af]">{patient?.tokenNumber || 'TKN-104'}</p>
-                  <span className="text-xs text-slate-600">{patient?.department || 'General Medicine'} • Room 104</span>
+                  <p className="text-lg font-black text-[#1e40af]">{activeVisit?.tokenNumber || patient?.tokenNumber || '—'}</p>
+                  <span className="text-xs text-slate-600">{activeVisit?.departmentName || activeVisit?.department?.name || patient?.department || '—'} {activeVisit?.department?.roomNumber ? `• ${activeVisit.department.roomNumber}` : ''}</span>
+                  {activeVisit?.clinicalMode && (
+                    <span className={`inline-block ml-2 px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                      activeVisit.clinicalMode === 'AYUSH' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-[#1e40af]'
+                    }`}>
+                      {activeVisit.clinicalMode}
+                    </span>
+                  )}
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 font-bold uppercase">{t('patient.opNumber')}</span>
-                  <p className="text-xs font-mono font-bold text-slate-800">{patient?.opNumber || 'OPD-2026-918231'}</p>
+                  <p className="text-xs font-mono font-bold text-slate-800">{activeVisit?.opNumber || patient?.opNumber || '—'}</p>
                   <span className="inline-block px-2 py-0.5 bg-blue-100 text-[#1e40af] rounded text-[10px] font-bold mt-1">
-                    {patient?.currentStatus || 'Waiting for Doctor'}
+                    {activeVisit?.status || patient?.currentStatus || 'Waiting for Doctor'}
                   </span>
                 </div>
               </div>
@@ -710,7 +817,11 @@ export default function PatientDashboardPage() {
                   <Bell className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <strong className="text-blue-900 font-bold block">OPD Token Generated</strong>
-                    <p className="text-blue-800">Token {patient?.tokenNumber || 'TKN-104'} issued for General Medicine OPD Room 104.</p>
+                    <p className="text-blue-800">
+                      {patient?.tokenNumber 
+                        ? `Token ${patient.tokenNumber} issued for ${patient.department || 'OPD'}.`
+                        : 'No active OPD token issued yet.'}
+                    </p>
                   </div>
                 </div>
               </div>

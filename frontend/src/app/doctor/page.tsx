@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Navbar } from '../../components/Navbar';
 import { DoctorDocumentReview } from './components/DoctorDocumentReview';
 import { DoctorAISummaryReview } from './components/DoctorAISummaryReview';
@@ -10,10 +11,11 @@ import { DoctorAssessmentForm } from './components/DoctorAssessmentForm';
 import { getSocket } from '../../lib/socket';
 import api from '../../lib/api';
 import { 
-  Users, Stethoscope, AlertTriangle, Clock, RefreshCw, UserCheck, ShieldAlert
+  Users, Stethoscope, AlertTriangle, Clock, RefreshCw, UserCheck, ShieldAlert, HeartPulse
 } from 'lucide-react';
 
 export default function DoctorPortalPage() {
+  const router = useRouter();
   const [queue, setQueue] = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [patientDetails, setPatientDetails] = useState<any>(null);
@@ -53,6 +55,26 @@ export default function DoctorPortalPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      const userStr = localStorage.getItem('user');
+      if (!token || !userStr) {
+        router.push('/login');
+        return;
+      }
+      try {
+        const u = JSON.parse(userStr);
+        if (u.role && u.role !== 'DOCTOR') {
+          if (u.role === 'ADMIN') router.push('/admin');
+          else router.push('/patient');
+          return;
+        }
+      } catch (e) {
+        router.push('/login');
+        return;
+      }
+    }
+
     fetchQueue();
 
     // Socket.IO Real-time Subscriptions
@@ -169,13 +191,27 @@ export default function DoctorPortalPage() {
                           : 'hover:bg-slate-50'
                       }`}
                     >
-                      <div className="flex justify-between items-start">
-                        <span className="font-extrabold text-sm text-slate-900">{item.name}</span>
-                        {isUrgent && (
-                          <span className="bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase animate-pulse">
-                            Urgent
-                          </span>
-                        )}
+                      <div className="flex justify-between items-start gap-1">
+                        <span className="font-extrabold text-sm text-slate-900">{item.name || item.patientName}</span>
+                        <div className="flex items-center gap-1">
+                          {item.clinicalMode && (
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
+                              item.clinicalMode === 'AYUSH' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-[#1e40af]'
+                            }`}>
+                              {item.clinicalMode}
+                            </span>
+                          )}
+                          {isUrgent && (
+                            <span className="bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase animate-pulse">
+                              Urgent
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold">
+                        <span>{item.department || 'General Medicine'}</span>
+                        <span className="font-mono text-[#1e40af] font-bold">{item.token || item.tokenNumber || ''}</span>
                       </div>
 
                       <p className="text-xs text-slate-600 font-medium line-clamp-1">
@@ -212,17 +248,60 @@ export default function DoctorPortalPage() {
           ) : (
             <>
               {/* Patient Banner */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-2">
-                <div className="flex justify-between items-start">
+              <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-sm space-y-3">
+                <div className="flex flex-wrap justify-between items-start gap-2">
                   <div>
-                    <h2 className="text-2xl font-black text-slate-900">{patientDetails.patient.name}</h2>
-                    <p className="text-xs text-slate-500 font-medium">
-                      ABHA: {patientDetails.patient.abhaId} � {patientDetails.patient.gender} � Age: {patientDetails.patient.age || 45} � Blood: {patientDetails.patient.bloodGroup || 'B+'}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-2xl font-black text-slate-900">{patientDetails.patient.name}</h2>
+                      {/* Prominent Clinical Mode Badge */}
+                      <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 border ${
+                        (patientDetails.opdVisit?.clinicalMode || (patientDetails.history?.ayushMode ? 'AYUSH' : 'MEDICAL')) === 'AYUSH'
+                          ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                          : 'bg-blue-50 text-blue-900 border-blue-300'
+                      }`}>
+                        {(patientDetails.opdVisit?.clinicalMode || (patientDetails.history?.ayushMode ? 'AYUSH' : 'MEDICAL')) === 'AYUSH' ? (
+                          <HeartPulse className="w-3.5 h-3.5 text-emerald-700" />
+                        ) : (
+                          <Stethoscope className="w-3.5 h-3.5 text-[#1e40af]" />
+                        )}
+                        <span>Clinical Mode: {patientDetails.opdVisit?.clinicalMode || (patientDetails.history?.ayushMode ? 'AYUSH' : 'MEDICAL')}</span>
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      ABHA: {patientDetails.patient.abhaId} • {patientDetails.patient.gender} • Age: {patientDetails.patient.age || 45} • Blood: {patientDetails.patient.bloodGroup || 'B+'}
                     </p>
                   </div>
                   <span className="bg-blue-50 text-hospital-700 text-xs font-bold px-2.5 py-1 rounded-full border border-blue-200">
                     {patientDetails.patient.currentStatus}
                   </span>
+                </div>
+
+                {/* Patient / OPD Details Grid */}
+                <div className="pt-2 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">OP Number</span>
+                    <strong className="font-mono text-slate-900">{patientDetails.opdVisit?.opNumber || patientDetails.patient.opNumber || '—'}</strong>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Token Number</span>
+                    <strong className="font-mono text-[#1e40af] text-sm">{patientDetails.opdVisit?.tokenNumber || patientDetails.patient.tokenNumber || '—'}</strong>
+                  </div>
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Department</span>
+                    <strong className="text-slate-900 truncate block">
+                      {patientDetails.opdVisit?.departmentName || patientDetails.opdVisit?.departmentId?.name || patientDetails.patient.department || 'General Medicine'}
+                    </strong>
+                  </div>
+                  <div className={`p-2.5 rounded-xl border-2 flex flex-col justify-center ${
+                    (patientDetails.opdVisit?.clinicalMode || (patientDetails.history?.ayushMode ? 'AYUSH' : 'MEDICAL')) === 'AYUSH'
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                      : 'bg-blue-50 border-blue-300 text-blue-950'
+                  }`}>
+                    <span className="text-[10px] font-black uppercase block opacity-80">Clinical Mode</span>
+                    <strong className="text-sm font-black uppercase block">
+                      {patientDetails.opdVisit?.clinicalMode || (patientDetails.history?.ayushMode ? 'AYUSH' : 'MEDICAL')}
+                    </strong>
+                  </div>
                 </div>
 
                 <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs text-slate-600">

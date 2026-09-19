@@ -106,6 +106,27 @@ router.post('/visits', authenticateUser, requireRole(['PATIENT']), async (req, r
   }
 });
 
+// Get All OPD Visits for current patient
+router.get('/visits', authenticateUser, requireRole(['PATIENT']), async (req, res) => {
+  try {
+    const patient = await Patient.findOne({ userId: req.user.id });
+    if (!patient) {
+      return res.status(404).json({ success: false, message: 'Patient profile not found' });
+    }
+
+    const visits = await OpdVisit.find({
+      patientId: patient._id
+    }).populate('departmentId').sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: visits
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Get Active OPD Visit for current patient
 router.get('/visits/active', authenticateUser, requireRole(['PATIENT']), async (req, res) => {
   try {
@@ -117,7 +138,7 @@ router.get('/visits/active', authenticateUser, requireRole(['PATIENT']), async (
     const activeVisit = await OpdVisit.findOne({
       patientId: patient._id,
       status: { $ne: 'COMPLETED' }
-    }).sort({ createdAt: -1 });
+    }).populate('departmentId').sort({ createdAt: -1 });
 
     res.json({
       success: true,
@@ -201,6 +222,16 @@ router.patch('/visits/:id/status', authenticateUser, async (req, res) => {
     const visit = await OpdVisit.findById(req.params.id);
     if (!visit) {
       return res.status(404).json({ success: false, message: 'OPD Visit not found' });
+    }
+
+    // Ownership check: Patient can only update their own visit
+    if (req.user.role === 'PATIENT' && visit.userId.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Forbidden: Access denied to other patient visit' });
+    }
+
+    // Clinical Mode is immutable after visit creation
+    if (req.body.clinicalMode && req.body.clinicalMode !== visit.clinicalMode) {
+      return res.status(400).json({ success: false, message: 'Forbidden: Clinical mode is immutable after visit creation' });
     }
 
     // 1. State machine check

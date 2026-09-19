@@ -20,7 +20,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await api.login({ email: loginEmail, password: loginPass });
+      const res = await api.login({ email: loginEmail.trim(), password: loginPass });
       if (res.success && res.user) {
         if (res.user.role === 'DOCTOR') {
           router.push('/doctor');
@@ -31,7 +31,26 @@ export default function LoginPage() {
         }
       }
     } catch (err: any) {
-      setError(err.message || t('errors.generic'));
+      const msg = err.message || '';
+      if (msg.includes('Network') || msg.includes('Failed to fetch') || msg.includes('ECONNREFUSED') || msg.includes('timeout')) {
+        setError(
+          language === 'ta'
+            ? 'சேவையகத்தை இணைக்க முடியவில்லை. தயவுசெய்து மீண்டும் முயற்சிக்கவும்.'
+            : language === 'hi'
+            ? 'प्रमाणीकरण सर्वर से कनेक्ट करने में असमर्थ। कृपया पुनः प्रयास करें।'
+            : 'Unable to connect to the authentication server. Please try again.'
+        );
+      } else if (msg.includes('Email or password is incorrect') || msg.includes('Invalid email or password')) {
+        setError(
+          language === 'ta'
+            ? 'மின்னஞ்சல் அல்லது கடவுச்சொல் தவறானது.'
+            : language === 'hi'
+            ? 'ईमेल या पासवर्ड गलत है।'
+            : 'Email or password is incorrect.'
+        );
+      } else {
+        setError(msg || t('errors.generic'));
+      }
     } finally {
       setLoading(false);
     }
@@ -39,7 +58,25 @@ export default function LoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    executeLogin(email, password);
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
+      setError(
+        language === 'ta'
+          ? 'மின்னஞ்சல் மற்றும் கடவுச்சொல்லை உள்ளிடவும்.'
+          : language === 'hi'
+          ? 'कृपया ईमेल और पासवर्ड दोनों दर्ज करें।'
+          : 'Please enter both email address and password.'
+      );
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      setError(t('validation.invalidEmail') || 'Please enter a valid email address.');
+      return;
+    }
+
+    executeLogin(cleanEmail, password);
   };
 
   const handleQuickLogin = (role: 'patient' | 'doctor' | 'admin') => {
@@ -73,7 +110,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                 {t('authentication.email')}

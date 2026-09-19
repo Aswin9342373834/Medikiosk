@@ -26,12 +26,18 @@ const consentRoutes = require('./routes/consent');
 const app = express();
 
 // Allowed Origins for CORS
+const envOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map(url => url.trim())
+  .filter(Boolean);
+
 const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:3001',
   'http://127.0.0.1:3001',
-  process.env.CLIENT_URL
+  'https://medikiosk-nn87.vercel.app',
+  ...envOrigins
 ].filter(Boolean);
 
 const corsOptions = {
@@ -42,6 +48,10 @@ const corsOptions = {
     }
     // Allow any localhost / 127.0.0.1 port in local development
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    // Allow Vercel preview and production deployments
+    if (/^https:\/\/([a-zA-Z0-9-_]+\.)?vercel\.app$/.test(origin)) {
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));

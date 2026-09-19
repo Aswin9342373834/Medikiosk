@@ -63,6 +63,22 @@ beforeAll(async () => {
       description: 'Cardiac care and diagnostics'
     },
     {
+      name: 'Pediatrics',
+      code: 'PEDIA',
+      clinicalMode: 'MEDICAL',
+      active: true,
+      hospitalId: hospital._id,
+      description: 'Maternal and child health'
+    },
+    {
+      name: 'Orthopedics',
+      code: 'ORTHO',
+      clinicalMode: 'MEDICAL',
+      active: true,
+      hospitalId: hospital._id,
+      description: 'Fracture management and joint disorders'
+    },
+    {
       name: 'Ayurveda',
       code: 'AYUR',
       clinicalMode: 'AYUSH',
@@ -841,4 +857,235 @@ describe('MediKiosk Authoritative & Validated Test Suite', () => {
     expect(signResult.status).toBe('INTEGRATION-READY_DIGEST_ONLY');
     expect(signResult.documentHash).toBe(hash);
   });
+
+  // 30. Clinical Mode Authoritative Architecture & Verification Suite (Audit Requirements A - L)
+  describe('Authoritative Clinical Mode Audit Suite (Requirements A through L)', () => {
+    test('A. General Medicine department sets clinicalMode to MEDICAL', async () => {
+      const dept = await Department.findOne({ name: 'General Medicine' });
+      expect(dept.clinicalMode).toBe('MEDICAL');
+      const res = await request(app)
+        .post('/api/opd/visits')
+        .set('Authorization', `Bearer ${patientAToken}`)
+        .send({ departmentId: dept._id });
+      expect(res.status).toBe(201);
+      expect(res.body.data.clinicalMode).toBe('MEDICAL');
+      expect(res.body.data.departmentName).toBe('General Medicine');
+    });
+
+    test('B. Cardiology department sets clinicalMode to MEDICAL', async () => {
+      const dept = await Department.findOne({ name: 'Cardiology' });
+      expect(dept.clinicalMode).toBe('MEDICAL');
+      const res = await request(app)
+        .post('/api/opd/visits')
+        .set('Authorization', `Bearer ${patientAToken}`)
+        .send({ departmentId: dept._id });
+      expect(res.status).toBe(201);
+      expect(res.body.data.clinicalMode).toBe('MEDICAL');
+      expect(res.body.data.departmentName).toBe('Cardiology');
+    });
+
+    test('C. Pediatrics department sets clinicalMode to MEDICAL', async () => {
+      const dept = await Department.findOne({ name: 'Pediatrics' });
+      expect(dept.clinicalMode).toBe('MEDICAL');
+      const res = await request(app)
+        .post('/api/opd/visits')
+        .set('Authorization', `Bearer ${patientAToken}`)
+        .send({ departmentId: dept._id });
+      expect(res.status).toBe(201);
+      expect(res.body.data.clinicalMode).toBe('MEDICAL');
+      expect(res.body.data.departmentName).toBe('Pediatrics');
+    });
+
+    test('D. Orthopedics department sets clinicalMode to MEDICAL', async () => {
+      const dept = await Department.findOne({ name: 'Orthopedics' });
+      expect(dept.clinicalMode).toBe('MEDICAL');
+      const res = await request(app)
+        .post('/api/opd/visits')
+        .set('Authorization', `Bearer ${patientAToken}`)
+        .send({ departmentId: dept._id });
+      expect(res.status).toBe(201);
+      expect(res.body.data.clinicalMode).toBe('MEDICAL');
+      expect(res.body.data.departmentName).toBe('Orthopedics');
+    });
+
+    test('E. Every actual AYUSH department in project seed (Ayurveda, Siddha, Unani) sets clinicalMode to AYUSH', async () => {
+      const ayushNames = ['Ayurveda', 'Siddha', 'Unani'];
+      for (const deptName of ayushNames) {
+        const dept = await Department.findOne({ name: deptName });
+        expect(dept).toBeDefined();
+        expect(dept.clinicalMode).toBe('AYUSH');
+
+        const res = await request(app)
+          .post('/api/opd/visits')
+          .set('Authorization', `Bearer ${patientBToken}`)
+          .send({ departmentId: dept._id });
+        expect(res.status).toBe(201);
+        expect(res.body.data.clinicalMode).toBe('AYUSH');
+        expect(res.body.data.departmentName).toBe(deptName);
+      }
+    });
+
+    test('F. General Medicine with conflicting payload clinicalMode: "AYUSH" forces stored mode to MEDICAL', async () => {
+      const dept = await Department.findOne({ name: 'General Medicine' });
+      const res = await request(app)
+        .post('/api/opd/visits')
+        .set('Authorization', `Bearer ${patientAToken}`)
+        .send({
+          departmentId: dept._id,
+          clinicalMode: 'AYUSH' // Spoofed conflicting frontend payload
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.data.clinicalMode).toBe('MEDICAL');
+
+      // Verify persisted MongoDB document
+      const persisted = await OpdVisit.findById(res.body.data._id);
+      expect(persisted.clinicalMode).toBe('MEDICAL');
+    });
+
+    test('G. AYUSH department with conflicting payload clinicalMode: "MEDICAL" forces stored mode to AYUSH', async () => {
+      const dept = await Department.findOne({ name: 'Ayurveda' });
+      const res = await request(app)
+        .post('/api/opd/visits')
+        .set('Authorization', `Bearer ${patientBToken}`)
+        .send({
+          departmentId: dept._id,
+          clinicalMode: 'MEDICAL' // Spoofed conflicting frontend payload
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.data.clinicalMode).toBe('AYUSH');
+
+      // Verify persisted MongoDB document
+      const persisted = await OpdVisit.findById(res.body.data._id);
+      expect(persisted.clinicalMode).toBe('AYUSH');
+    });
+
+    test('H. GET /api/opd/visits/active returns correct backend clinicalMode', async () => {
+      // Patient A has latest visit in General Medicine (MEDICAL)
+      const resA = await request(app)
+        .get('/api/opd/visits/active')
+        .set('Authorization', `Bearer ${patientAToken}`);
+      expect(resA.status).toBe(200);
+      expect(resA.body.success).toBe(true);
+      expect(resA.body.data.clinicalMode).toBe('MEDICAL');
+
+      // Patient B has latest visit in Ayurveda (AYUSH)
+      const resB = await request(app)
+        .get('/api/opd/visits/active')
+        .set('Authorization', `Bearer ${patientBToken}`);
+      expect(resB.status).toBe(200);
+      expect(resB.body.success).toBe(true);
+      expect(resB.body.data.clinicalMode).toBe('AYUSH');
+    });
+
+    test('I. Doctor queue returns correct clinicalMode for both MEDICAL and AYUSH patients', async () => {
+      const res = await request(app)
+        .get('/api/doctors/queue')
+        .set('Authorization', `Bearer ${doctorToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThan(0);
+
+      // Verify each patient item in queue contains explicit clinicalMode and token
+      res.body.data.forEach(item => {
+        expect(['MEDICAL', 'AYUSH']).toContain(item.clinicalMode);
+        expect(item.tokenNumber || item.token).toBeDefined();
+        expect(item.department).toBeDefined();
+      });
+    });
+
+    test('J. Doctor patient details returns correct clinicalMode on opdVisit', async () => {
+      const res = await request(app)
+        .get(`/api/doctors/patient-details/${patientAProfile._id}`)
+        .set('Authorization', `Bearer ${doctorToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.opdVisit).toBeDefined();
+      expect(res.body.data.opdVisit.clinicalMode).toBe('MEDICAL');
+    });
+
+    test('K. Patient cannot change clinicalMode after OP visit creation (Mode Immutability)', async () => {
+      const activeRes = await request(app)
+        .get('/api/opd/visits/active')
+        .set('Authorization', `Bearer ${patientAToken}`);
+      const visitId = activeRes.body.data._id;
+      const originalMode = activeRes.body.data.clinicalMode;
+
+      // Attempt to tamper clinicalMode via status update patch route
+      const patchRes = await request(app)
+        .patch(`/api/opd/visits/${visitId}/status`)
+        .set('Authorization', `Bearer ${patientAToken}`)
+        .send({
+          status: 'WAITING',
+          clinicalMode: 'AYUSH' // Illegal attempt to change mode
+        });
+      expect(patchRes.status).toBe(400);
+      expect(patchRes.body.message).toMatch(/immutable/i);
+
+      // Verify DB mode remained intact
+      const checkDoc = await OpdVisit.findById(visitId);
+      expect(checkDoc.clinicalMode).toBe(originalMode);
+    });
+
+    test('L. Another patient visit cannot be used to manipulate clinicalMode (Patient Ownership Isolation)', async () => {
+      // Patient A tries to patch Patient B's active visit
+      const activeBRes = await request(app)
+        .get('/api/opd/visits/active')
+        .set('Authorization', `Bearer ${patientBToken}`);
+      const visitBId = activeBRes.body.data._id;
+
+      const maliciousPatch = await request(app)
+        .patch(`/api/opd/visits/${visitBId}/status`)
+        .set('Authorization', `Bearer ${patientAToken}`) // Patient A attempting on Patient B
+        .send({
+          status: 'WAITING',
+          clinicalMode: 'MEDICAL'
+        });
+      expect(maliciousPatch.status).toBe(403);
+      expect(maliciousPatch.body.message).toMatch(/forbidden/i);
+
+      // Verify Patient B visit remained AYUSH
+      const checkDoc = await OpdVisit.findById(visitBId);
+      expect(checkDoc.clinicalMode).toBe('AYUSH');
+    });
+
+    test('M. GET /api/opd/visits returns history of visits for authenticated patient with populated department details', async () => {
+      const res = await request(app)
+        .get('/api/opd/visits')
+        .set('Authorization', `Bearer ${patientAToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThan(0);
+
+      // Each visit must contain opNumber, tokenNumber, clinicalMode, departmentName, status
+      res.body.data.forEach(visit => {
+        expect(visit.opNumber).toBeDefined();
+        expect(visit.tokenNumber).toBeDefined();
+        expect(visit.clinicalMode).toBeDefined();
+        expect(['MEDICAL', 'AYUSH']).toContain(visit.clinicalMode);
+        expect(visit.departmentName).toBeDefined();
+        expect(visit.status).toBeDefined();
+      });
+    });
+
+    test('N. Patient B cannot see Patient A visits via GET /api/opd/visits (Strict Isolation)', async () => {
+      const resA = await request(app)
+        .get('/api/opd/visits')
+        .set('Authorization', `Bearer ${patientAToken}`);
+      const visitAIds = resA.body.data.map(v => v._id.toString());
+
+      const resB = await request(app)
+        .get('/api/opd/visits')
+        .set('Authorization', `Bearer ${patientBToken}`);
+      expect(resB.status).toBe(200);
+      expect(resB.body.success).toBe(true);
+
+      // Verify none of Patient A's visits appear in Patient B's list
+      resB.body.data.forEach(visit => {
+        expect(visitAIds).not.toContain(visit._id.toString());
+      });
+    });
+  });
 });
+

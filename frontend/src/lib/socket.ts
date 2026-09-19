@@ -1,6 +1,20 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
+const getSocketUrl = (): string => {
+  const envSocket = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (envSocket && envSocket.trim() !== '') {
+    return envSocket.trim().replace(/\/api\/?$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    const { hostname, origin } = window.location;
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return origin;
+    }
+  }
+  return 'http://localhost:5000';
+};
+
+const SOCKET_URL = getSocketUrl();
 
 let socket: Socket | null = null;
 

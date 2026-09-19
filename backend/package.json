@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "seed": "node utils/seed.js",
     "test": "jest",
     "test:e2e": "node tests/automated_e2e_runner.js"
   },

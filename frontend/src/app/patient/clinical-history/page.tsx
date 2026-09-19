@@ -73,10 +73,10 @@ export default function PatientClinicalHistoryWizard() {
         if (visitRes.success && visitRes.data) {
           const v = visitRes.data;
           setActiveVisit(v);
-          const isAyush = v.clinicalMode === 'AYUSH' || (v.department?.clinicalMode === 'AYUSH');
+          const isAyush = v.clinicalMode === 'AYUSH' || (v.department?.clinicalMode === 'AYUSH') || (v.departmentId?.clinicalMode === 'AYUSH');
           setFormData(prev => ({
             ...prev,
-            department: v.department?.name || prev.department,
+            department: v.departmentName || v.department?.name || v.departmentId?.name || prev.department,
             ayushMode: isAyush
           }));
         }
@@ -288,18 +288,35 @@ export default function PatientClinicalHistoryWizard() {
           </div>
         )}
 
-        {/* Active Visit Banner */}
+        {/* Active Visit Banner with Authoritative Clinical Mode */}
         {activeVisit && (
-          <div className="mb-4 p-3.5 bg-blue-50 border border-blue-200 rounded-2xl flex flex-wrap items-center justify-between text-xs gap-2">
-            <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-blue-700" />
-              <span className="font-black text-blue-950">OPD Token: {activeVisit.tokenNumber}</span>
-              <span className="text-slate-600 font-semibold">• {activeVisit.department?.name || formData.department}</span>
-              {activeVisit.queueNumber && <span className="text-slate-500 font-bold">(Queue #{activeVisit.queueNumber})</span>}
+          <div className="mb-4 p-4 bg-white border-2 border-slate-200 shadow-sm rounded-2xl flex flex-wrap items-center justify-between text-xs gap-3">
+            <div className="flex items-center gap-2.5">
+              <Building2 className="w-5 h-5 text-[#1e40af]" />
+              <div>
+                <span className="font-black text-slate-900 text-sm">OPD Token: {activeVisit.tokenNumber}</span>
+                <span className="text-slate-600 font-semibold ml-2">• {activeVisit.departmentName || activeVisit.department?.name || activeVisit.departmentId?.name || formData.department}</span>
+                {activeVisit.queueNumber && <span className="text-slate-500 font-bold ml-1.5">(Queue #{activeVisit.queueNumber})</span>}
+              </div>
             </div>
-            <span className={`px-2.5 py-0.5 rounded-full font-black uppercase text-[10px] tracking-wider ${formData.ayushMode ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-blue-100 text-blue-800 border border-blue-300'}`}>
-              {formData.ayushMode ? 'AYUSH Clinical Mode' : 'General Medical Mode'}
-            </span>
+
+            {/* Dedicated Standout CLINICAL MODE Badge */}
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1.5 rounded-full font-black uppercase text-xs tracking-wider flex items-center gap-1.5 border-2 ${
+                (activeVisit.clinicalMode === 'AYUSH' || formData.ayushMode)
+                  ? 'bg-emerald-50 text-emerald-950 border-emerald-400 shadow-sm'
+                  : 'bg-blue-50 text-blue-950 border-blue-400 shadow-sm'
+              }`}>
+                {(activeVisit.clinicalMode === 'AYUSH' || formData.ayushMode) ? (
+                  <HeartPulse className="w-4 h-4 text-emerald-700" />
+                ) : (
+                  <Stethoscope className="w-4 h-4 text-[#1e40af]" />
+                )}
+                <span>
+                  {t('common.clinicalMode')}: {(activeVisit.clinicalMode === 'AYUSH' || formData.ayushMode) ? 'AYUSH' : 'MEDICAL'}
+                </span>
+              </span>
+            </div>
           </div>
         )}
 
@@ -790,7 +807,7 @@ export default function PatientClinicalHistoryWizard() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStep(8)}
+                  onClick={() => setStep(formData.ayushMode ? 7 : 8)}
                   className="px-8 py-3 bg-[#1e40af] hover:bg-blue-800 text-white font-black rounded-xl text-sm shadow"
                 >
                   {t('common.continue')}
@@ -903,7 +920,7 @@ export default function PatientClinicalHistoryWizard() {
               </div>
 
               <div className="flex justify-between pt-4 border-t border-slate-200">
-                <button type="button" onClick={() => setStep(2)} className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs">
+                <button type="button" onClick={() => setStep(6)} className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs">
                   {t('common.back')}
                 </button>
                 <button type="button" onClick={() => setStep(8)} className="px-8 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-xl text-sm shadow">

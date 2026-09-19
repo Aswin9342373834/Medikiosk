@@ -505,6 +505,29 @@ export default function PatientKioskPage() {
                 })}
               </div>
 
+              {/* Touch-Friendly Selected Department & Clinical Mode Indicator */}
+              <div className="p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-sm">
+                <div>
+                  <span className="text-xs font-bold text-slate-500 uppercase block">{t('patient.department')}</span>
+                  <strong className="text-slate-900 text-lg">{formData.department}</strong>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-bold text-slate-500 uppercase block">{t('common.clinicalMode')}</span>
+                  <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-black text-sm uppercase border-2 ${
+                    formData.ayushMode
+                      ? 'bg-emerald-50 text-emerald-950 border-emerald-400 shadow-sm'
+                      : 'bg-blue-50 text-blue-950 border-blue-400 shadow-sm'
+                  }`}>
+                    {formData.ayushMode ? (
+                      <HeartPulse className="w-4 h-4 text-emerald-700" />
+                    ) : (
+                      <Stethoscope className="w-4 h-4 text-[#1e40af]" />
+                    )}
+                    <span>{formData.ayushMode ? 'AYUSH' : 'MEDICAL'}</span>
+                  </span>
+                </div>
+              </div>
+
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => setStep(3)} className="px-8 py-4 border-2 border-slate-300 font-bold rounded-2xl text-lg">
                   {t('common.back')}
@@ -735,14 +758,29 @@ export default function PatientKioskPage() {
                   <span className="text-xs font-bold text-slate-500 uppercase">{t('ai.chiefComplaint')}</span>
                   <p className="text-xl font-black text-slate-900">{formData.presentingComplaint}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t border-slate-200">
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase">{t('patient.department')}</span>
-                    <p className="text-sm font-bold text-slate-800">{formData.department} ({formData.ayushMode ? 'AYUSH' : 'Medical'})</p>
+                    <span className="text-xs font-bold text-slate-500 uppercase block">{t('patient.department')}</span>
+                    <p className="text-base font-black text-slate-900 mt-0.5">{formData.department}</p>
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase">{t('clinicalHistory.severityQuestion')}</span>
-                    <p className="text-sm font-bold text-hospital-700">{formData.severity}</p>
+                    <span className="text-xs font-bold text-slate-500 uppercase block">{t('common.clinicalMode')}</span>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-black text-xs uppercase border mt-1 ${
+                      formData.ayushMode
+                        ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                        : 'bg-blue-50 text-blue-900 border-blue-300'
+                    }`}>
+                      {formData.ayushMode ? (
+                        <HeartPulse className="w-3.5 h-3.5 text-emerald-700" />
+                      ) : (
+                        <Stethoscope className="w-3.5 h-3.5 text-[#1e40af]" />
+                      )}
+                      <span>{formData.ayushMode ? 'AYUSH' : 'MEDICAL'}</span>
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-500 uppercase block">{t('clinicalHistory.severityQuestion')}</span>
+                    <p className="text-base font-black text-hospital-700 mt-0.5">{formData.severity}</p>
                   </div>
                 </div>
               </div>

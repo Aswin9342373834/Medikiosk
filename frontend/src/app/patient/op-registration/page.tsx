@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import api from '../../../lib/api';
@@ -8,83 +8,134 @@ import { useTranslation } from '../../../contexts/LanguageContext';
 import { LanguageSwitcher } from '../../../components/LanguageSwitcher';
 import { 
   Building2, User, MapPin, Phone, HeartPulse, CheckCircle2, 
-  ArrowRight, ArrowLeft, ShieldCheck, Printer, RefreshCw, FileText
+  ArrowRight, ArrowLeft, ShieldCheck, Printer, RefreshCw, FileText, Stethoscope,
+  Sparkles, Check, Activity
 } from 'lucide-react';
 
 export default function PatientOPRegistrationPage() {
   const router = useRouter();
   const { t, language } = useTranslation();
+  
+  // Step 1: Select Department (Touch Cards Grid)
+  // Step 2: Patient Identification & Details
+  // Step 3: Clinical Reason & Digital Consent
   const [step, setStep] = useState<number>(1);
-  const totalSteps = 6;
+  const totalSteps = 3;
+
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [registeredResult, setRegisteredResult] = useState<any>(null);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [loadingDepts, setLoadingDepts] = useState<boolean>(true);
 
-  React.useEffect(() => {
-    const loadDepartments = async () => {
-      try {
-        const res = await api.getDepartments();
-        if (res.success && Array.isArray(res.data)) {
-          setDepartments(res.data);
-        }
-      } catch (e) {}
-    };
-    loadDepartments();
-  }, []);
-
-  // Form State matching the 6 government hospital sections
+  // Form State
   const [formData, setFormData] = useState({
-    // Section 1: Patient Identification
+    // Department Selection
+    departmentId: '',
+    department: 'General Medicine',
+    clinicalMode: 'MEDICAL',
+
+    // Patient Identification
     fullName: '',
     age: '',
-    dateOfBirth: '',
     gender: 'Male',
     contactNumber: '',
-    uhid: '',
     abhaId: '',
+    uhid: '',
 
-    // Section 2: Address
-    address: '',
-    villageArea: '',
+    // Address & Emergency
+    address: 'Main Road',
     district: 'Central',
     state: 'Delhi',
     pincode: '110029',
-
-    // Section 3: Emergency Contact
-    emergencyName: '',
+    emergencyName: 'Family Contact',
     emergencyRelationship: 'Spouse',
     emergencyPhone: '',
 
-    // Section 4: Hospital Visit
-    hospital: 'All India Institute of Medical Sciences (AIIMS)',
-    department: 'General Medicine',
-    opdType: 'General OPD',
-    visitType: 'New',
-    preferredLanguage: language === 'ta' ? 'Tamil' : language === 'hi' ? 'Hindi' : 'English',
-
-    // Section 5: Basic Health Information
+    // Clinical Reason & Health
     reasonForVisit: '',
     existingConditions: [] as string[],
-    currentMedications: '',
     allergies: [] as string[],
 
-    // Section 6: Consent
+    // Consent
     consentGiven: true
   });
 
+  // Fetch Authoritative Departments from Backend
+  useEffect(() => {
+    const fetchDepartmentsAndProfile = async () => {
+      setLoadingDepts(true);
+      try {
+        const deptRes = await api.getDepartments();
+        if (deptRes.success && Array.isArray(deptRes.data) && deptRes.data.length > 0) {
+          setDepartments(deptRes.data);
+          const first = deptRes.data[0];
+          setFormData(prev => ({
+            ...prev,
+            department: prev.department || first.name,
+            departmentId: prev.departmentId || first._id,
+            clinicalMode: first.clinicalMode
+          }));
+        }
+
+        // Try pre-filling from logged-in patient profile
+        try {
+          const profRes = await api.getPatientProfile();
+          if (profRes.success && profRes.data) {
+            const p = profRes.data;
+            setFormData(prev => ({
+              ...prev,
+              fullName: p.name || prev.fullName,
+              age: p.age ? String(p.age) : prev.age,
+              gender: p.gender || prev.gender,
+              contactNumber: p.contactNumber || p.phone || prev.contactNumber,
+              abhaId: p.abhaId || prev.abhaId,
+              uhid: p.uhid || prev.uhid
+            }));
+          }
+        } catch (e) {
+          // Guest registration flow
+        }
+      } catch (err: any) {
+        console.warn('Failed to load authoritative departments:', err.message);
+      } finally {
+        setLoadingDepts(false);
+      }
+    };
+
+    fetchDepartmentsAndProfile();
+  }, []);
+
+  const selectedDeptObj = departments.find(d => d.name === formData.department || d._id === formData.departmentId) || {
+    name: formData.department,
+    clinicalMode: /ayush|ayurveda|siddha|unani/i.test(formData.department) ? 'AYUSH' : 'MEDICAL',
+    description: /ayush|ayurveda|siddha|unani/i.test(formData.department) 
+      ? 'Traditional AYUSH clinical management and herbal medicine' 
+      : 'Adult primary care, acute fevers, respiratory issues, and non-communicable diseases'
+  };
+
+  const isAyushMode = selectedDeptObj.clinicalMode === 'AYUSH';
+
+  const handleSelectDepartment = (dept: any) => {
+    setFormData(prev => ({
+      ...prev,
+      department: dept.name,
+      departmentId: dept._id,
+      clinicalMode: dept.clinicalMode
+    }));
+  };
+
   const nextStep = () => {
     setError('');
-    // Validation per step
     if (step === 1) {
-      if (!formData.fullName.trim() || !formData.age) {
-        setError(t('validation.fillRequiredFields'));
+      if (!formData.department) {
+        setError(t('validation.fillRequiredFields') || 'Please select a hospital department');
         return;
       }
     }
-    if (step === 5) {
-      if (!formData.reasonForVisit.trim()) {
-        setError(t('validation.fillRequiredFields'));
+    if (step === 2) {
+      if (!formData.fullName.trim() || !formData.age) {
+        setError(t('validation.fillRequiredFields') || 'Please enter full name and age');
         return;
       }
     }
@@ -98,24 +149,32 @@ export default function PatientOPRegistrationPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleCheckboxToggle = (field: 'existingConditions' | 'allergies', value: string) => {
-    setFormData(prev => {
-      const exists = prev[field].includes(value);
-      return {
-        ...prev,
-        [field]: exists ? prev[field].filter(v => v !== value) : [...prev[field], value]
-      };
-    });
-  };
-
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await api.opRegister({
-        ...formData,
+      const payload = {
+        fullName: formData.fullName || 'OPD Patient',
+        name: formData.fullName || 'OPD Patient',
+        age: formData.age || '45',
+        gender: formData.gender,
+        contactNumber: formData.contactNumber || '+91 98111 22334',
+        phone: formData.contactNumber || '+91 98111 22334',
+        abhaId: formData.abhaId,
+        uhid: formData.uhid,
+        department: formData.department,
+        departmentId: formData.departmentId,
+        address: formData.address,
+        district: formData.district,
+        state: formData.state,
+        pincode: formData.pincode,
+        emergencyName: formData.emergencyName,
+        emergencyPhone: formData.emergencyPhone,
+        reasonForVisit: formData.reasonForVisit || (isAyushMode ? 'Traditional AYUSH Consultation' : 'General Medical OPD'),
         preferredLanguage: language === 'ta' ? 'Tamil' : language === 'hi' ? 'Hindi' : 'English'
-      });
+      };
+
+      const res = await api.opRegister(payload);
       if (res.success && res.data) {
         setRegisteredResult(res.data);
       } else {
@@ -133,7 +192,7 @@ export default function PatientOPRegistrationPage() {
       
       {/* Top Government Bar */}
       <div className="bg-[#0b1b3d] text-white py-2.5 px-3 sm:px-8 border-b border-blue-900">
-        <div className="max-w-4xl mx-auto flex flex-wrap justify-between items-center text-xs gap-2">
+        <div className="max-w-5xl mx-auto flex flex-wrap justify-between items-center text-xs gap-2">
           <div className="flex items-center gap-2">
             <Building2 className="w-4 h-4 text-amber-400" />
             <span className="font-bold">{t('opd.title')}</span>
@@ -147,10 +206,12 @@ export default function PatientOPRegistrationPage() {
         </div>
       </div>
 
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col justify-center">
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col justify-center">
         
         {registeredResult ? (
-          /* COMPLETION SLIP / TOKEN CONFIRMATION */
+          /* ======================================================== */
+          /* REGISTRATION CONFIRMATION SLIP                           */
+          /* ======================================================== */
           <div className="bg-white rounded-3xl border-2 border-emerald-600 shadow-2xl p-6 sm:p-10 space-y-6">
             <div className="text-center space-y-2 border-b-2 border-slate-200 pb-6">
               <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-full mx-auto flex items-center justify-center">
@@ -160,7 +221,7 @@ export default function PatientOPRegistrationPage() {
                 {t('opd.confirmation')} • {t('opd.tokenGenerated')}
               </span>
               <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
-                {t('opd.title')}
+                {registeredResult.department} Outpatient Consultation
               </h2>
               <p className="text-xs text-slate-500 font-semibold">
                 {registeredResult.hospital || 'All India Institute of Medical Sciences (AIIMS)'}
@@ -172,7 +233,7 @@ export default function PatientOPRegistrationPage() {
               <span className="text-xs font-black text-slate-500 uppercase tracking-widest">
                 {t('patient.tokenNumber')}
               </span>
-              <div className="text-5xl sm:text-6xl font-black text-[#1e40af] tracking-wider">
+              <div className="text-5xl sm:text-6xl font-black text-[#1e40af] tracking-wider font-mono">
                 {registeredResult.tokenNumber}
               </div>
               <p className="text-xs text-slate-600 font-bold">
@@ -180,12 +241,12 @@ export default function PatientOPRegistrationPage() {
                   ? `தயவுசெய்து ${registeredResult.department} ஆலோசனை அறைக்குச் செல்லவும்`
                   : language === 'hi'
                   ? `कृपया ${registeredResult.department} परामर्श कक्ष में जाएं`
-                  : `Please proceed to ${registeredResult.department} Consultation Room 104`}
+                  : `Please proceed to ${registeredResult.department} Consultation Room`}
               </p>
             </div>
 
-            {/* Generated Official Identifiers */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-blue-50/50 p-6 rounded-2xl border border-blue-200 text-xs sm:text-sm">
+            {/* Official Identifiers Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 bg-blue-50/50 p-6 rounded-2xl border border-blue-200 text-xs sm:text-sm">
               <div>
                 <span className="text-[11px] font-bold text-slate-500 uppercase block">{t('opd.fullName')}</span>
                 <strong className="text-slate-900 font-black text-base">{registeredResult.name}</strong>
@@ -195,20 +256,27 @@ export default function PatientOPRegistrationPage() {
                 <strong className="text-[#1e40af] font-mono font-black text-base">{registeredResult.opNumber}</strong>
               </div>
               <div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase block">{t('authentication.abhaId')}</span>
-                <span className="font-mono font-bold text-slate-800">{registeredResult.abhaId}</span>
-              </div>
-              <div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase block">UHID / Patient ID</span>
-                <span className="font-mono font-bold text-slate-800">{registeredResult.uhid || registeredResult.patientId}</span>
-              </div>
-              <div>
                 <span className="text-[11px] font-bold text-slate-500 uppercase block">{t('patient.department')}</span>
-                <strong className="text-slate-900">{registeredResult.department}</strong>
+                <strong className="text-slate-900 text-base">{registeredResult.department}</strong>
+              </div>
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 uppercase block">{t('common.clinicalMode')}</span>
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-black text-xs uppercase border ${
+                  registeredResult.clinicalMode === 'AYUSH'
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : 'bg-blue-100 text-blue-950 border-blue-300'
+                }`}>
+                  {registeredResult.clinicalMode === 'AYUSH' ? <HeartPulse className="w-3.5 h-3.5 text-emerald-700" /> : <Stethoscope className="w-3.5 h-3.5 text-[#1e40af]" />}
+                  <span>Clinical Mode: {registeredResult.clinicalMode || 'MEDICAL'}</span>
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 uppercase block">{t('authentication.abhaId')}</span>
+                <span className="font-mono font-bold text-slate-800">{registeredResult.abhaId || 'ABHA-VERIFIED'}</span>
               </div>
               <div>
                 <span className="text-[11px] font-bold text-slate-500 uppercase block">{t('common.status')}</span>
-                <span className="bg-blue-100 text-blue-900 font-black px-2 py-0.5 rounded text-xs">
+                <span className="bg-blue-100 text-blue-900 font-black px-2.5 py-0.5 rounded text-xs">
                   {registeredResult.registrationStatus || 'Registered'}
                 </span>
               </div>
@@ -242,7 +310,9 @@ export default function PatientOPRegistrationPage() {
             </div>
           </div>
         ) : (
-          /* MULTI-STEP REGISTRATION WIZARD */
+          /* ======================================================== */
+          /* REGISTRATION WIZARD                                      */
+          /* ======================================================== */
           <div className="bg-white rounded-3xl border-2 border-slate-300 shadow-xl p-6 sm:p-10 space-y-6">
             
             {/* Step Progress Bar */}
@@ -252,12 +322,9 @@ export default function PatientOPRegistrationPage() {
                   {t('opd.step')} {step} / {totalSteps}
                 </span>
                 <span>
-                  {step === 1 && t('opd.step1')}
-                  {step === 2 && t('opd.step4')}
-                  {step === 3 && t('opd.emergencyRelation')}
-                  {step === 4 && t('opd.step2')}
-                  {step === 5 && t('opd.step5')}
-                  {step === 6 && t('opd.step6')}
+                  {step === 1 && (t('opd.departmentSelect') || 'Select Department')}
+                  {step === 2 && t('opd.step1')}
+                  {step === 3 && (t('opd.step6') || 'Consent & Confirmation')}
                 </span>
               </div>
               <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
@@ -274,9 +341,177 @@ export default function PatientOPRegistrationPage() {
               </div>
             )}
 
-            {/* STEP 1: PATIENT IDENTIFICATION */}
+            {/* ==================================================== */}
+            {/* STEP 1: SELECT DEPARTMENT (TOUCH CARDS)               */}
+            {/* ==================================================== */}
             {step === 1 && (
-              <div className="space-y-4">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900">
+                    {t('opd.departmentSelect') || 'Select Hospital Department'}
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-1">
+                    {language === 'ta'
+                      ? 'உங்கள் மருத்துவ ஆலோசனைகான துறையைத் தேர்ந்தெடுக்கவும். நீங்கள் தேர்ந்தெடுக்கும் துறையின் அடிப்படையில் முறை செயல்படுத்தப்படும்.'
+                      : language === 'hi'
+                      ? 'अपने परामर्श के लिए विभाग चुनें। प्रणाली स्वचालित रूप से संबंधित क्लीनिकल मोड लागू करेगी।'
+                      : 'Choose the department for your consultation. The system authoritatively activates Allopathic or AYUSH clinical protocols based on your selection.'}
+                  </p>
+                </div>
+
+                {/* Accessible Select Dropdown with Synchronized Options */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    {t('opd.departmentSelect') || 'Department'}
+                  </label>
+                  <select
+                    value={formData.department}
+                    onChange={(e) => {
+                      const found = departments.find(d => d.name === e.target.value);
+                      if (found) handleSelectDepartment(found);
+                      else setFormData(p => ({ ...p, department: e.target.value }));
+                    }}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-900 outline-none"
+                  >
+                    {departments.map(d => (
+                      <option key={d._id || d.name} value={d.name}>
+                        {d.name} ({d.clinicalMode === 'AYUSH' ? 'AYUSH Mode' : 'Medical Mode'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Touch-Friendly Department Cards Grid */}
+                {loadingDepts ? (
+                  <div className="p-8 text-center text-slate-400 text-xs">
+                    Loading departments from hospital database...
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {departments.map((dept) => {
+                      const isSelected = formData.department === dept.name || formData.departmentId === dept._id;
+                      const isDeptAyush = dept.clinicalMode === 'AYUSH';
+
+                      return (
+                        <div
+                          key={dept._id || dept.name}
+                          onClick={() => handleSelectDepartment(dept)}
+                          className={`p-5 rounded-2xl border-2 cursor-pointer transition flex items-start gap-4 ${
+                            isSelected
+                              ? isDeptAyush
+                                ? 'border-emerald-600 bg-emerald-50/70 shadow-md ring-2 ring-emerald-400'
+                                : 'border-blue-700 bg-blue-50/70 shadow-md ring-2 ring-blue-400'
+                              : 'border-slate-200 bg-white hover:border-slate-400 hover:shadow-sm'
+                          }`}
+                        >
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                            isDeptAyush ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-[#1e40af]'
+                          }`}>
+                            {isDeptAyush ? <HeartPulse className="w-6 h-6" /> : <Stethoscope className="w-6 h-6" />}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <h4 className="font-black text-base text-slate-900 truncate">
+                                {dept.name}
+                              </h4>
+                              <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase border ${
+                                isDeptAyush 
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                                  : 'bg-blue-100 text-blue-900 border-blue-300'
+                              }`}>
+                                {isDeptAyush ? 'Clinical Mode: AYUSH' : 'Clinical Mode: MEDICAL'}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-600 mt-1 line-clamp-2">
+                              {dept.description || (isDeptAyush ? 'Traditional AYUSH clinical management and herbal medicine' : 'General and specialized allopathic outpatient care')}
+                            </p>
+
+                            <div className="mt-2 text-[11px] text-slate-500 font-semibold flex items-center gap-2">
+                              <span>Room: {dept.roomNumber || (isDeptAyush ? 'Room 201' : 'Room 104')}</span>
+                              <span>•</span>
+                              <span>{isDeptAyush ? 'AYUSH Protocols' : 'Allopathic OPD'}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center self-center pl-2">
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                              isSelected
+                                ? isDeptAyush ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-[#1e40af] bg-[#1e40af] text-white'
+                                : 'border-slate-300'
+                            }`}>
+                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ================================================ */}
+                {/* PROMINENT SELECTION & CLINICAL MODE CONFIRMATION */}
+                {/* ================================================ */}
+                <div className={`p-5 rounded-2xl border-2 flex flex-wrap items-center justify-between gap-4 transition ${
+                  isAyushMode 
+                    ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950' 
+                    : 'bg-blue-50/80 border-blue-300 text-blue-950'
+                }`}>
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                      {t('patient.department')}
+                    </span>
+                    <strong className="text-2xl font-black text-slate-900 block">
+                      {selectedDeptObj.name}
+                    </strong>
+                    <p className="text-xs text-slate-600 font-medium">
+                      {isAyushMode
+                        ? '🌿 AYUSH Clinical Protocol Activated: Prakriti, Vikriti, Agni, and Ayurvedic/AYUSH assessments will be presented.'
+                        : '🩺 Medical OPD Allopathic Protocol Activated: General triage and allopathic clinical history will be presented.'}
+                    </p>
+                  </div>
+
+                  <div className="text-right flex flex-col items-end">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      {t('common.clinicalMode')}
+                    </span>
+                    <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full font-black text-sm uppercase border-2 shadow-sm ${
+                      isAyushMode
+                        ? 'bg-emerald-600 text-white border-emerald-700'
+                        : 'bg-[#1e40af] text-white border-blue-900'
+                    }`}>
+                      {isAyushMode ? <HeartPulse className="w-4 h-4" /> : <Stethoscope className="w-4 h-4" />}
+                      <span>Clinical Mode: {selectedDeptObj.clinicalMode}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2">
+                  <Link
+                    href="/patient"
+                    className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs hover:bg-slate-50 transition"
+                  >
+                    {t('common.cancel')}
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={nextStep}
+                    className="px-8 py-3.5 bg-[#1e40af] hover:bg-blue-800 text-white font-black rounded-xl text-sm transition flex items-center gap-2 shadow-md hover:shadow-lg"
+                  >
+                    <span>{t('common.continue')}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ==================================================== */}
+            {/* STEP 2: PATIENT IDENTIFICATION & REASON              */}
+            {/* ==================================================== */}
+            {step === 2 && (
+              <div className="space-y-6">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="text-xl font-black text-slate-900">{t('opd.step1')}</h3>
                   <p className="text-xs text-slate-500">{t('opd.step1Desc')}</p>
@@ -313,20 +548,6 @@ export default function PatientOPRegistrationPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      {language === 'ta' ? 'பிறந்த தேதி' : language === 'hi' ? 'जन्म तिथि' : 'Date of Birth'} ({t('common.optional')})
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.dateOfBirth}
-                      onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                       {t('opd.gender')} *
                     </label>
                     <select
@@ -339,7 +560,9 @@ export default function PatientOPRegistrationPage() {
                       <option value="Other">{t('opd.other')}</option>
                     </select>
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                       {t('opd.phone')}
@@ -352,12 +575,10 @@ export default function PatientOPRegistrationPage() {
                       className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      {t('authentication.abhaId')}
+                      {t('authentication.abhaId')} ({t('common.optional')})
                     </label>
                     <input
                       type="text"
@@ -367,381 +588,130 @@ export default function PatientOPRegistrationPage() {
                       className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm focus:border-[#1e40af] outline-none font-mono"
                     />
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      UHID / Patient ID
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.uhid}
-                      onChange={(e) => setFormData({ ...formData, uhid: e.target.value })}
-                      placeholder="Leave blank for new registration"
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm focus:border-[#1e40af] outline-none font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 2: ADDRESS */}
-            {step === 2 && (
-              <div className="space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h3 className="text-xl font-black text-slate-900">{t('opd.step4')}</h3>
-                  <p className="text-xs text-slate-500">{t('opd.step4Desc')}</p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    {t('opd.address')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="e.g. House No. 42, Gali 3"
-                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      {t('opd.villageArea')}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.villageArea}
-                      onChange={(e) => setFormData({ ...formData, villageArea: e.target.value })}
-                      placeholder="e.g. Ansari Nagar"
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      {t('opd.district')}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.district}
-                      onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                      placeholder="e.g. South Delhi"
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      {t('opd.state')}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.state}
-                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                      placeholder="e.g. Delhi"
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      {t('opd.pincode')}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.pincode}
-                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                      placeholder="e.g. 110029"
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 3: EMERGENCY CONTACT */}
-            {step === 3 && (
-              <div className="space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h3 className="text-xl font-black text-slate-900">{t('patient.emergencyDetails')}</h3>
-                  <p className="text-xs text-slate-500">{t('opd.step4Desc')}</p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    {t('opd.emergencyName')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.emergencyName}
-                    onChange={(e) => setFormData({ ...formData, emergencyName: e.target.value })}
-                    placeholder="e.g. Sunita Devi"
-                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      {t('opd.emergencyRelation')}
-                    </label>
-                    <select
-                      value={formData.emergencyRelationship}
-                      onChange={(e) => setFormData({ ...formData, emergencyRelationship: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none bg-white font-bold"
-                    >
-                      <option value="Spouse">Spouse (கணவன் / மனைவி / पति / पत्नी)</option>
-                      <option value="Parent">Parent (பெற்றோர் / माता / पिता)</option>
-                      <option value="Child">Child (மகன் / மகள் / संतान)</option>
-                      <option value="Sibling">Sibling (சகோதரன் / சகோதரி / भाई / बहन)</option>
-                      <option value="Friend/Neighbor">Other / Friend</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      {t('opd.emergencyPhone')}
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.emergencyPhone}
-                      onChange={(e) => setFormData({ ...formData, emergencyPhone: e.target.value })}
-                      placeholder="+91 98111 22334"
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 4: HOSPITAL VISIT DETAILS */}
-            {step === 4 && (
-              <div className="space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h3 className="text-xl font-black text-slate-900">{t('opd.step2')}</h3>
-                  <p className="text-xs text-slate-500">{t('opd.step2Desc')}</p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    {t('opd.departmentSelect')}
-                  </label>
-                  <select
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none bg-white font-bold"
-                  >
-                    {departments.length > 0 ? (
-                      departments.map((dept) => (
-                        <option key={dept._id} value={dept.name}>
-                          {dept.name} ({dept.clinicalMode === 'AYUSH' ? '🌿 AYUSH Clinical Mode' : '🩺 Medical OPD Mode'})
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="General Medicine">General Medicine (🩺 Medical OPD Mode)</option>
-                        <option value="Cardiology">Cardiology (🩺 Medical OPD Mode)</option>
-                        <option value="Orthopedics">Orthopedics (🩺 Medical OPD Mode)</option>
-                        <option value="Pediatrics">Pediatrics (🩺 Medical OPD Mode)</option>
-                        <option value="Ayurveda">Ayurveda (🌿 AYUSH Clinical Mode)</option>
-                        <option value="Siddha">Siddha (🌿 AYUSH Clinical Mode)</option>
-                        <option value="Unani">Unani (🌿 AYUSH Clinical Mode)</option>
-                      </>
-                    )}
-                  </select>
-                  <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2 text-xs">
-                    <span className="font-bold text-slate-700">Clinical Workflow:</span>
-                    <span className={`px-2.5 py-0.5 rounded-full font-black text-[11px] uppercase ${
-                      departments.find(d => d.name === formData.department)?.clinicalMode === 'AYUSH' || /ayush|ayurveda|siddha|unani/i.test(formData.department)
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                        : 'bg-blue-100 text-blue-800 border border-blue-300'
-                    }`}>
-                      {departments.find(d => d.name === formData.department)?.clinicalMode === 'AYUSH' || /ayush|ayurveda|siddha|unani/i.test(formData.department)
-                        ? '🌿 AYUSH Clinical Protocol'
-                        : '🩺 Modern Medical Protocol'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      {t('opd.opdType')}
-                    </label>
-                    <select
-                      value={formData.opdType}
-                      onChange={(e) => setFormData({ ...formData, opdType: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none bg-white font-bold"
-                    >
-                      <option value="General OPD">{t('opd.generalOpd')}</option>
-                      <option value="Specialty Clinic">{t('opd.specialOpd')}</option>
-                      <option value="AYUSH">{t('opd.ayushOpd')}</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      {t('opd.visitType')}
-                    </label>
-                    <select
-                      value={formData.visitType}
-                      onChange={(e) => setFormData({ ...formData, visitType: e.target.value })}
-                      className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none bg-white font-bold"
-                    >
-                      <option value="New">{t('opd.newVisit')}</option>
-                      <option value="Follow-Up">{t('opd.followUp')}</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 5: BASIC HEALTH INFORMATION */}
-            {step === 5 && (
-              <div className="space-y-4">
-                <div className="border-b border-slate-100 pb-2">
-                  <h3 className="text-xl font-black text-slate-900">{t('opd.step5')}</h3>
-                  <p className="text-xs text-slate-500">{t('opd.step5Desc')}</p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    {t('clinicalHistory.mainQuestion')} *
+                    {isAyushMode ? 'Chief Health Complaint / AYUSH Concern' : t('opd.reasonForVisit')}
                   </label>
                   <textarea
                     rows={3}
-                    required
                     value={formData.reasonForVisit}
                     onChange={(e) => setFormData({ ...formData, reasonForVisit: e.target.value })}
-                    placeholder={t('clinicalHistory.mainQuestionHelper')}
-                    className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-base focus:border-[#1e40af] outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    {t('clinicalHistory.pastMedicalHistory')}
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {['Diabetes', 'Hypertension', 'Asthma', 'Heart Disease', 'Thyroid', 'Kidney Disease'].map(cond => (
-                      <button
-                        key={cond}
-                        type="button"
-                        onClick={() => handleCheckboxToggle('existingConditions', cond)}
-                        className={`p-3 rounded-xl border text-xs font-bold transition text-left ${
-                          formData.existingConditions.includes(cond)
-                            ? 'bg-hospital-100 border-hospital-600 text-hospital-900 shadow-xs'
-                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                        }`}
-                      >
-                        {cond}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    {t('clinicalHistory.allergies')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.allergies.join(', ')}
-                    onChange={(e) => setFormData({ ...formData, allergies: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                    placeholder="e.g. Penicillin, Sulfa drugs, Dust"
+                    placeholder={
+                      isAyushMode
+                        ? 'e.g. Chronic indigestion, joint stiffness, body weakness, sleep issues'
+                        : 'e.g. High fever, cough, chest discomfort, acute pain'
+                    }
                     className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl text-sm focus:border-[#1e40af] outline-none"
                   />
                 </div>
+
+                <div className="flex justify-between items-center pt-2">
+                  <button
+                    type="button"
+                    onClick={prevStep}
+                    className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs hover:bg-slate-50 transition"
+                  >
+                    &larr; {t('common.back')}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={nextStep}
+                    className="px-8 py-3.5 bg-[#1e40af] hover:bg-blue-800 text-white font-black rounded-xl text-sm transition flex items-center gap-2 shadow-md hover:shadow-lg"
+                  >
+                    <span>{t('common.continue')}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* STEP 6: CONSENT & SUBMISSION */}
-            {step === 6 && (
+            {/* ==================================================== */}
+            {/* STEP 3: DIGITAL CONSENT & CONFIRMATION               */}
+            {/* ==================================================== */}
+            {step === 3 && (
               <div className="space-y-6">
                 <div className="border-b border-slate-100 pb-2">
                   <h3 className="text-xl font-black text-slate-900">{t('opd.step6')}</h3>
-                  <p className="text-xs text-slate-500">{t('opd.step6Desc')}</p>
+                  <p className="text-xs text-slate-500">
+                    Review and confirm outpatient registration for {formData.department}.
+                  </p>
                 </div>
 
-                <div className="bg-blue-50/70 border-2 border-blue-200 rounded-2xl p-5 sm:p-6 space-y-4">
-                  <div className="flex items-start gap-3">
-                    <ShieldCheck className="w-8 h-8 text-[#1e40af] flex-shrink-0 mt-0.5" />
+                {/* Review Card */}
+                <div className="p-5 bg-slate-50 border-2 border-slate-200 rounded-2xl space-y-3 text-xs sm:text-sm">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <h4 className="font-black text-slate-900 text-base">
-                        {t('consent.title')}
-                      </h4>
-                      <p className="text-xs text-slate-700 mt-1 leading-relaxed">
-                        {t('consent.body')}
-                      </p>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('opd.fullName')}</span>
+                      <strong className="text-slate-900 font-black">{formData.fullName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('opd.age')} & {t('opd.gender')}</span>
+                      <strong className="text-slate-900 font-black">{formData.age} yrs • {formData.gender}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('patient.department')}</span>
+                      <strong className="text-slate-900 font-black text-base">{formData.department}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">{t('common.clinicalMode')}</span>
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full font-black text-xs uppercase border ${
+                        isAyushMode ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-blue-100 text-blue-900 border-blue-300'
+                      }`}>
+                        {isAyushMode ? <HeartPulse className="w-3 h-3 text-emerald-700" /> : <Stethoscope className="w-3 h-3 text-[#1e40af]" />}
+                        <span>{selectedDeptObj.clinicalMode}</span>
+                      </span>
                     </div>
                   </div>
+                </div>
 
-                  <div className="bg-white p-4 rounded-xl border border-blue-200 text-xs text-slate-600 space-y-2">
-                    <p className="font-semibold text-slate-900">
-                      {t('consent.aiNotice')}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {t('consent.legalNotice')}
-                    </p>
-                  </div>
-
-                  <label className="flex items-center gap-3 cursor-pointer pt-1">
-                    <input
-                      type="checkbox"
-                      checked={formData.consentGiven}
-                      onChange={(e) => setFormData({ ...formData, consentGiven: e.target.checked })}
-                      className="w-5 h-5 rounded text-[#1e40af] focus:ring-[#1e40af]"
-                    />
-                    <span className="text-xs sm:text-sm font-black text-slate-900">
-                      {t('consent.agree')}
-                    </span>
+                {/* Consent Checkbox */}
+                <div 
+                  className="p-4 bg-blue-50 border-2 border-blue-200 rounded-xl flex items-center gap-3 cursor-pointer"
+                  onClick={() => setFormData({ ...formData, consentGiven: !formData.consentGiven })}
+                >
+                  <input
+                    type="checkbox"
+                    id="consentAgreed"
+                    checked={formData.consentGiven}
+                    onChange={(e) => setFormData({ ...formData, consentGiven: e.target.checked })}
+                    className="w-5 h-5 accent-[#1e40af] cursor-pointer"
+                  />
+                  <label htmlFor="consentAgreed" className="text-xs sm:text-sm font-bold text-slate-900 cursor-pointer">
+                    {t('consent.agree')}
                   </label>
+                </div>
+
+                <div className="flex justify-between items-center pt-2">
+                  <button
+                    type="button"
+                    onClick={prevStep}
+                    className="px-6 py-3 border-2 border-slate-300 font-bold rounded-xl text-xs hover:bg-slate-50 transition"
+                  >
+                    &larr; {t('common.back')}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={loading || !formData.consentGiven}
+                    onClick={handleSubmit}
+                    className={`px-8 py-3.5 text-white font-black rounded-xl text-sm transition flex items-center gap-2 shadow-lg ${
+                      loading || !formData.consentGiven 
+                        ? 'bg-slate-400 cursor-not-allowed' 
+                        : 'bg-emerald-700 hover:bg-emerald-800'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                    <span>{loading ? t('common.loading') : 'Register OPD Visit & Continue'}</span>
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* Wizard Navigation Buttons */}
-            <div className="flex justify-between items-center pt-4 border-t border-slate-200 gap-4">
-              {step > 1 ? (
-                <button
-                  type="button"
-                  onClick={prevStep}
-                  className="px-6 py-3 border-2 border-slate-300 text-slate-700 font-black rounded-xl hover:bg-slate-100 transition flex items-center gap-2 text-sm"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>{t('common.back')}</span>
-                </button>
-              ) : <div />}
-
-              {step < totalSteps ? (
-                <button
-                  type="button"
-                  onClick={nextStep}
-                  className="px-8 py-3.5 bg-[#1e40af] hover:bg-blue-800 text-white font-black rounded-xl transition flex items-center gap-2 text-sm shadow-md"
-                >
-                  <span>{t('common.continue')}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={loading || !formData.consentGiven}
-                  onClick={handleSubmit}
-                  className="px-8 py-4 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-black rounded-xl transition flex items-center gap-2 text-base shadow-lg"
-                >
-                  <span>{loading ? t('common.loading') : t('common.submit')}</span>
-                  <CheckCircle2 className="w-5 h-5" />
-                </button>
-              )}
-            </div>
-
           </div>
         )}
-
       </main>
     </div>
   );

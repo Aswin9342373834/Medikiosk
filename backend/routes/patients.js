@@ -227,8 +227,7 @@ router.post('/op-register', async (req, res) => {
     // Authoritative Department & clinicalMode lookup
     let deptDoc = await Department.findOne({ name: new RegExp('^' + patientDept.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
     if (!deptDoc) {
-      // Check if code or partial matches
-      deptDoc = await Department.findOne({ active: true });
+      deptDoc = await Department.findOne({ code: new RegExp('^' + patientDept.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
     }
     const authoritativeMode = deptDoc?.clinicalMode || (/ayush|ayurveda|siddha|unani/i.test(patientDept) ? 'AYUSH' : 'MEDICAL');
 

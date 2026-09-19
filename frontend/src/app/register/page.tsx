@@ -24,19 +24,76 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const [success, setSuccess] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
 
+    const cleanFirstName = formData.firstName.trim();
+    const cleanLastName = formData.lastName.trim();
+    const cleanEmail = formData.email.trim().toLowerCase();
+    const cleanPassword = formData.password;
+
+    if (!cleanFirstName || !cleanLastName) {
+      setError(language === 'ta' ? 'முதல் மற்றும் கடைசி பெயரை உள்ளிடவும்.' : language === 'hi' ? 'कृपया पहला और अंतिम नाम दर्ज करें।' : 'Please enter both your first and last name.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      setError(language === 'ta' ? 'சரியான மின்னஞ்சல் முகவரியை உள்ளிடவும்.' : language === 'hi' ? 'कृपया एक मान्य ईमेल पता दर्ज करें।' : 'Please enter a valid email address.');
+      return;
+    }
+
+    if (cleanPassword.length < 6) {
+      setError(language === 'ta' ? 'கடவுச்சொல் குறைந்தது 6 எழுத்துகள் இருக்க வேண்டும்.' : language === 'hi' ? 'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।' : 'Password must be at least 6 characters long.');
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      const res = await api.register(formData);
+      const payload = {
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
+        email: cleanEmail,
+        password: cleanPassword,
+        phone: formData.phone.trim() || undefined,
+        abhaId: formData.abhaId.trim() || undefined,
+        role: 'PATIENT',
+        department: 'General Medicine'
+      };
+
+      const res = await api.register(payload);
       if (res.success) {
-        alert(language === 'ta' ? 'கணக்கு வெற்றிகரமாக உருவாக்கப்பட்டது! உள்நுழையவும்.' : language === 'hi' ? 'खाता सफलतापूर्वक बनाया गया! कृपया साइन इन करें।' : 'Account created successfully! Please sign in.');
-        router.push('/login');
+        setSuccess(true);
+        setTimeout(() => {
+          router.push('/login');
+        }, 1500);
       }
     } catch (err: any) {
-      setError(err.message || t('errors.generic'));
+      if (err.status === 409 || err.code === 'DUPLICATE_EMAIL') {
+        setError(
+          language === 'ta'
+            ? 'இந்த மின்னஞ்சல் முகவரி ஏற்கனவே பதிவு செய்யப்பட்டுள்ளது. உள்நுழையவும்.'
+            : language === 'hi'
+            ? 'इस ईमेल के साथ पहले से ही एक खाता मौजूद है। कृपया साइन इन करें।'
+            : 'An account with this email already exists. Please sign in or use another email.'
+        );
+      } else if (err.status === 400 || err.code === 'VALIDATION_ERROR') {
+        setError(err.message || 'Please check your registration details.');
+      } else if (err.isNetworkError || err.message?.includes('Network Error') || err.code === 'NETWORK_ERROR') {
+        setError(
+          language === 'ta'
+            ? 'சேவையகத்தை இணைக்க முடியவில்லை. இணைய இணைப்பை சரிபார்க்கவும் அல்லது பின்னர் முயற்சிக்கவும்.'
+            : language === 'hi'
+            ? 'सर्वर से कनेक्ट करने में असमर्थ। कृपया नेटवर्क कनेक्शन जांचें या बाद में प्रयास करें।'
+            : 'Unable to connect to the MediKiosk server. Please check your internet connection or verify that the backend is online.'
+        );
+      } else {
+        setError(err.message || t('errors.generic'));
+      }
     } finally {
       setLoading(false);
     }
@@ -62,7 +119,17 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {success && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium rounded-xl">
+              {language === 'ta'
+                ? 'கணக்கு வெற்றிகரமாக உருவாக்கப்பட்டது! உள்நுழைவு பக்கத்திற்கு மாற்றப்படுகிறீர்கள்...'
+                : language === 'hi'
+                ? 'खाता सफलतापूर्वक बनाया गया! साइन इन पृष्ठ पर पुनर्निर्देशित किया जा रहा है...'
+                : 'Account created successfully! Redirecting to Sign In...'}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">

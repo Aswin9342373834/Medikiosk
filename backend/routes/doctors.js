@@ -20,20 +20,42 @@ router.get('/queue', authenticateUser, requireRole(['DOCTOR', 'ADMIN']), async (
       .populate('patientId')
       .sort({ createdAt: -1 });
 
+    // Fetch associated OPD visits for authoritative clinicalMode and token/op numbers
+    const patientIds = histories.map(h => h.patientId?._id).filter(Boolean);
+    const opdVisits = await OpdVisit.find({ patientId: { $in: patientIds } }).populate('departmentId').sort({ createdAt: -1 });
+    const visitMap = {};
+    for (const v of opdVisits) {
+      const pid = v.patientId.toString();
+      if (!visitMap[pid]) {
+        visitMap[pid] = v;
+      }
+    }
+
     // Prioritize red flags at the top of the queue
     const queue = histories.map(h => {
       const p = h.patientId || {};
       const redFlagCount = (h.redFlags && h.redFlags.length) || 0;
+      const v = p._id ? visitMap[p._id.toString()] : null;
+      const mode = v ? v.clinicalMode : (h.ayushMode ? 'AYUSH' : 'MEDICAL');
+      const dept = v ? (v.departmentName || v.departmentId?.name) : (p.department || (mode === 'AYUSH' ? 'Ayurveda' : 'General Medicine'));
+      const token = v ? v.tokenNumber : (p.tokenNumber || '');
+      const opNum = v ? v.opNumber : (p.opNumber || '');
+
       return {
         id: h._id,
         historyId: h._id,
         patientId: p._id,
         name: p.name || 'Unknown Patient',
+        patientName: p.name || 'Unknown Patient',
         age: p.age || 45,
         gender: p.gender || 'Not specified',
         abhaId: p.abhaId || 'N/A',
         preferredLanguage: p.preferredLanguage || 'English',
-        department: h.ayushMode ? 'AYUSH / Ayurveda' : (p.department || 'General Medicine'),
+        department: dept,
+        clinicalMode: mode,
+        token: token,
+        tokenNumber: token,
+        opNumber: opNum,
         complaint: h.presentingComplaint,
         aiSummary: h.aiSummary,
         aiStatus: h.aiStatus,
@@ -67,7 +89,7 @@ router.get('/patient-details/:patientId', authenticateUser, requireRole(['DOCTOR
     const investigations = await Investigation.find({ patientId }).sort({ orderedDate: -1 });
     const prescriptions = await Prescription.find({ patientId }).sort({ date: -1 });
     const consultations = await Consultation.find({ patientId }).sort({ consultationDate: -1 });
-    const opdVisit = await OpdVisit.findOne({ patientId }).sort({ createdAt: -1 });
+    const opdVisit = await OpdVisit.findOne({ patientId }).populate('departmentId').sort({ createdAt: -1 });
     const consent = await Consent.findOne({ patientId }).sort({ createdAt: -1 });
 
     // Build unified chronological medical timeline
