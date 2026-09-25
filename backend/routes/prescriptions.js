@@ -9,7 +9,7 @@ const { authenticateUser, requireRole, createAuditLog } = require('../middleware
 // Create Prescription (Doctor Only)
 router.post('/', authenticateUser, requireRole(['DOCTOR']), async (req, res) => {
   try {
-    const { patientId, consultationId, items, followUp, generalAdvice } = req.body;
+    const { patientId, consultationId, diagnosis, items, followUp, generalAdvice } = req.body;
     if (!patientId || !items || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Patient ID and prescribed items are required' });
     }
@@ -17,6 +17,7 @@ router.post('/', authenticateUser, requireRole(['DOCTOR']), async (req, res) => 
     const docHash = digitalSignatureService.computeDigest({
       patientId,
       doctorId: req.user.id,
+      diagnosis,
       items,
       followUp,
       generalAdvice,
@@ -27,6 +28,7 @@ router.post('/', authenticateUser, requireRole(['DOCTOR']), async (req, res) => 
       patientId,
       doctorId: req.user.id,
       consultationId,
+      diagnosis,
       items,
       followUp,
       generalAdvice,
@@ -76,8 +78,38 @@ router.get('/patient/:patientId', authenticateUser, async (req, res) => {
       }
     }
 
-    const prescriptions = await Prescription.find({ patientId }).sort({ date: -1 });
+    const prescriptions = await Prescription.find({ patientId })
+      .populate('doctorId', 'firstName lastName email role')
+      .sort({ date: -1 });
     res.json({ success: true, data: prescriptions });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get single prescription by ID
+router.get('/:id', authenticateUser, async (req, res) => {
+  try {
+    const prescription = await Prescription.findById(req.params.id)
+      .populate('doctorId', 'firstName lastName email role')
+      .populate('patientId', 'name age gender uhid abhaId userId');
+
+    if (!prescription) {
+      return res.status(404).json({ success: false, message: 'Prescription not found' });
+    }
+
+    // RBAC: Patient can only view their own prescription
+    if (req.user.role === 'PATIENT') {
+      const patient = await Patient.findOne({ userId: req.user.id });
+      const rxPatientId = prescription.patientId?._id?.toString() || prescription.patientId?.toString();
+      if (!patient || patient._id.toString() !== rxPatientId) {
+        return res.status(403).json({ success: false, message: 'Access forbidden: You cannot view another patient\'s prescription' });
+      }
+    } else if (req.user.role !== 'DOCTOR' && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    res.json({ success: true, data: prescription });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

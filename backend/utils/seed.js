@@ -13,6 +13,9 @@ const MedicalDocument = require('../models/MedicalDocument');
 const Consultation = require('../models/Consultation');
 const OpdVisit = require('../models/OpdVisit');
 const Consent = require('../models/Consent');
+const Pharmacy = require('../models/Pharmacy');
+const Prescription = require('../models/Prescription');
+const digitalSignatureService = require('../services/digitalSignatureService');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/medikiosk';
 
@@ -360,6 +363,240 @@ async function seedDatabase() {
       },
       { upsert: true }
     );
+
+    // 7. Seed Demo Pharmacies (Synthetic Demo Names & Simulated Inventory)
+    const demoPharmacies = [
+      {
+        code: 'PHARM-DEMO-01',
+        name: 'MediKiosk Demo Pharmacy 01 - Ansari Nagar (AIIMS Vicinity)',
+        address: 'Gate 2, Sri Aurobindo Marg, Ansari Nagar, New Delhi',
+        city: 'New Delhi',
+        pincode: '110029',
+        phone: '+91-11-2659-DEMO-01',
+        operatingHours: '24/7 (Emergency & Outpatient)',
+        rating: 4.8,
+        location: {
+          type: 'Point',
+          coordinates: [77.2100, 28.5672] // ~0.1 km from AIIMS
+        },
+        isSimulated: true,
+        inventory: [
+          { medicineName: 'Paracetamol', brandName: 'Calpol', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 150, price: 15.0 },
+          { medicineName: 'Amoxicillin', brandName: 'Mox', dosageForm: 'Capsule', strength: '500mg', inStock: true, quantity: 80, price: 65.0 },
+          { medicineName: 'Amlodipine', brandName: 'Amlong', dosageForm: 'Tablet', strength: '5mg', inStock: true, quantity: 120, price: 28.0 },
+          { medicineName: 'Metformin', brandName: 'Glycomet', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 200, price: 32.0 },
+          { medicineName: 'Atorvastatin', brandName: 'Atorva', dosageForm: 'Tablet', strength: '20mg', inStock: true, quantity: 90, price: 85.0 },
+          { medicineName: 'Pantoprazole', brandName: 'Pan-40', dosageForm: 'Tablet', strength: '40mg', inStock: true, quantity: 140, price: 45.0 },
+          { medicineName: 'Cetirizine', brandName: 'Cetzine', dosageForm: 'Tablet', strength: '10mg', inStock: true, quantity: 100, price: 18.0 },
+          { medicineName: 'Azithromycin', brandName: 'Azee', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 60, price: 110.0 },
+          { medicineName: 'ORS Oral Rehydration Salts', brandName: 'Electral', dosageForm: 'Sachet', strength: '21.8g', inStock: true, quantity: 300, price: 22.0 }
+        ]
+      },
+      {
+        code: 'PHARM-DEMO-02',
+        name: 'MediKiosk Demo Pharmacy 02 - Yusuf Sarai Market',
+        address: 'Shop 14, Main Market, Yusuf Sarai, New Delhi',
+        city: 'New Delhi',
+        pincode: '110016',
+        phone: '+91-11-2656-DEMO-02',
+        operatingHours: '08:00 AM - 11:00 PM',
+        rating: 4.6,
+        location: {
+          type: 'Point',
+          coordinates: [77.2065, 28.5635] // ~0.7 km
+        },
+        isSimulated: true,
+        inventory: [
+          { medicineName: 'Paracetamol', brandName: 'Dolo', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 100, price: 16.0 },
+          { medicineName: 'Amlodipine', brandName: 'Amlodac', dosageForm: 'Tablet', strength: '5mg', inStock: true, quantity: 75, price: 30.0 },
+          { medicineName: 'Metformin', brandName: 'Glycomet', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 110, price: 34.0 },
+          { medicineName: 'Pantoprazole', brandName: 'Pantocid', dosageForm: 'Tablet', strength: '40mg', inStock: true, quantity: 95, price: 48.0 },
+          { medicineName: 'Cetirizine', brandName: 'Alerid', dosageForm: 'Tablet', strength: '10mg', inStock: true, quantity: 80, price: 20.0 }
+          // Note: Amoxicillin and Atorvastatin missing here for test differentiation
+        ]
+      },
+      {
+        code: 'PHARM-DEMO-03',
+        name: 'MediKiosk Demo Pharmacy 03 - Green Park Main Market',
+        address: 'Plot 22, Commercial Complex, Green Park Main, New Delhi',
+        city: 'New Delhi',
+        pincode: '110016',
+        phone: '+91-11-2651-DEMO-03',
+        operatingHours: '08:30 AM - 10:30 PM',
+        rating: 4.7,
+        location: {
+          type: 'Point',
+          coordinates: [77.2050, 28.5580] // ~1.2 km
+        },
+        isSimulated: true,
+        inventory: [
+          { medicineName: 'Paracetamol', brandName: 'Crocin', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 120, price: 18.0 },
+          { medicineName: 'Amoxicillin', brandName: 'Novamox', dosageForm: 'Capsule', strength: '500mg', inStock: true, quantity: 60, price: 70.0 },
+          { medicineName: 'Amlodipine', brandName: 'Amlopres', dosageForm: 'Tablet', strength: '5mg', inStock: true, quantity: 85, price: 29.0 },
+          { medicineName: 'Metformin', brandName: 'Obimet', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 140, price: 30.0 },
+          { medicineName: 'Atorvastatin', brandName: 'Lipivas', dosageForm: 'Tablet', strength: '20mg', inStock: true, quantity: 70, price: 92.0 },
+          { medicineName: 'Pantoprazole', brandName: 'Pan', dosageForm: 'Tablet', strength: '40mg', inStock: true, quantity: 110, price: 46.0 }
+        ]
+      },
+      {
+        code: 'PHARM-DEMO-04',
+        name: 'MediKiosk Demo Pharmacy 04 - Safdarjung Enclave Community Centre',
+        address: 'B-2/10, Community Centre, Safdarjung Enclave, New Delhi',
+        city: 'New Delhi',
+        pincode: '110029',
+        phone: '+91-11-2610-DEMO-04',
+        operatingHours: '09:00 AM - 10:00 PM',
+        rating: 4.5,
+        location: {
+          type: 'Point',
+          coordinates: [77.1985, 28.5610] // ~1.3 km
+        },
+        isSimulated: true,
+        inventory: [
+          { medicineName: 'Paracetamol', brandName: 'Calpol', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 90, price: 15.0 },
+          { medicineName: 'Amlodipine', brandName: 'Amlong', dosageForm: 'Tablet', strength: '5mg', inStock: true, quantity: 60, price: 28.0 },
+          { medicineName: 'Cetirizine', brandName: 'Cetzine', dosageForm: 'Tablet', strength: '10mg', inStock: true, quantity: 70, price: 19.0 },
+          { medicineName: 'Pantoprazole', brandName: 'Pan-40', dosageForm: 'Tablet', strength: '40mg', inStock: true, quantity: 80, price: 45.0 }
+        ]
+      },
+      {
+        code: 'PHARM-DEMO-05',
+        name: 'MediKiosk Demo Pharmacy 05 - South Extension Part 2',
+        address: 'Block E-18, South Extension Part 2, Ring Road, New Delhi',
+        city: 'New Delhi',
+        pincode: '110049',
+        phone: '+91-11-2625-DEMO-05',
+        operatingHours: '24/7',
+        rating: 4.9,
+        location: {
+          type: 'Point',
+          coordinates: [77.2215, 28.5725] // ~1.5 km
+        },
+        isSimulated: true,
+        inventory: [
+          { medicineName: 'Amlodipine', brandName: 'Amlodac', dosageForm: 'Tablet', strength: '5mg', inStock: true, quantity: 130, price: 31.0 },
+          { medicineName: 'Metformin', brandName: 'Glycomet', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 180, price: 33.0 },
+          { medicineName: 'Atorvastatin', brandName: 'Atorlip', dosageForm: 'Tablet', strength: '20mg', inStock: true, quantity: 100, price: 88.0 },
+          { medicineName: 'Pantoprazole', brandName: 'Pan-40', dosageForm: 'Tablet', strength: '40mg', inStock: true, quantity: 150, price: 45.0 },
+          { medicineName: 'Azithromycin', brandName: 'Azithral', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 75, price: 115.0 }
+        ]
+      },
+      {
+        code: 'PHARM-DEMO-06',
+        name: 'MediKiosk Demo Pharmacy 06 - Hauz Khas Metro',
+        address: 'Near Metro Gate 3, Sri Aurobindo Marg, Hauz Khas, New Delhi',
+        city: 'New Delhi',
+        pincode: '110016',
+        phone: '+91-11-2652-DEMO-06',
+        operatingHours: '08:00 AM - 10:00 PM',
+        rating: 4.4,
+        location: {
+          type: 'Point',
+          coordinates: [77.2060, 28.5490] // ~2.1 km
+        },
+        isSimulated: true,
+        inventory: [
+          { medicineName: 'Paracetamol', brandName: 'Dolo', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 80, price: 16.0 },
+          { medicineName: 'Cetirizine', brandName: 'Okacet', dosageForm: 'Tablet', strength: '10mg', inStock: true, quantity: 60, price: 18.0 },
+          { medicineName: 'Amoxicillin', brandName: 'Mox', dosageForm: 'Capsule', strength: '500mg', inStock: true, quantity: 45, price: 68.0 }
+        ]
+      },
+      {
+        code: 'PHARM-DEMO-07',
+        name: 'MediKiosk Demo Pharmacy 07 - Lajpat Nagar Ring Road',
+        address: 'Ring Road, Near Metro Pillar 42, Lajpat Nagar IV, New Delhi',
+        city: 'New Delhi',
+        pincode: '110024',
+        phone: '+91-11-2983-DEMO-07',
+        operatingHours: '09:00 AM - 11:00 PM',
+        rating: 4.6,
+        location: {
+          type: 'Point',
+          coordinates: [77.2430, 28.5675] // ~3.4 km
+        },
+        isSimulated: true,
+        inventory: [
+          { medicineName: 'Paracetamol', brandName: 'Calpol', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 150, price: 15.0 },
+          { medicineName: 'Metformin', brandName: 'Glycomet', dosageForm: 'Tablet', strength: '500mg', inStock: true, quantity: 160, price: 32.0 },
+          { medicineName: 'Atorvastatin', brandName: 'Atorva', dosageForm: 'Tablet', strength: '20mg', inStock: true, quantity: 80, price: 86.0 }
+        ]
+      }
+    ];
+
+    for (const p of demoPharmacies) {
+      await Pharmacy.findOneAndUpdate({ code: p.code }, p, { upsert: true, new: true });
+    }
+    console.log('Demo Pharmacies seeded with simulated inventory.');
+
+    // 8. Seed Authoritative Digital Prescription for Demo Patient Ramesh Kumar
+    const rxItems = [
+      {
+        medicine: 'Amlodipine',
+        dosage: '5mg',
+        frequency: 'Once daily (morning)',
+        duration: '30 days',
+        route: 'Oral',
+        instructions: 'After breakfast'
+      },
+      {
+        medicine: 'Metformin',
+        dosage: '500mg',
+        frequency: 'Twice daily',
+        duration: '30 days',
+        route: 'Oral',
+        instructions: 'After meals'
+      },
+      {
+        medicine: 'Atorvastatin',
+        dosage: '20mg',
+        frequency: 'Once daily (bedtime)',
+        duration: '30 days',
+        route: 'Oral',
+        instructions: 'Before sleep'
+      },
+      {
+        medicine: 'Pantoprazole',
+        dosage: '40mg',
+        frequency: 'Once daily (morning)',
+        duration: '14 days',
+        route: 'Oral',
+        instructions: '30 mins before breakfast'
+      }
+    ];
+
+    const rxPayload = {
+      patientId: patient._id.toString(),
+      doctorId: doctorUser._id.toString(),
+      items: rxItems,
+      diagnosis: 'Essential Hypertension & Type 2 Diabetes Mellitus with Exertional Angina',
+      followUp: 'Review in Cardiology OPD after 2 weeks with repeat ECG and lipid profile',
+      generalAdvice: 'Low sodium diabetic diet, daily 30 min brisk walk, avoid smoking and heavy exertion',
+      status: 'Active'
+    };
+
+    const rxHash = digitalSignatureService.computeDigest(rxPayload);
+
+    await Prescription.findOneAndUpdate(
+      { patientId: patient._id, status: 'Active' },
+      {
+        consultationId: demoVisit._id,
+        patientId: patient._id,
+        doctorId: doctorUser._id,
+        items: rxItems,
+        followUp: rxPayload.followUp,
+        generalAdvice: rxPayload.generalAdvice,
+        diagnosis: rxPayload.diagnosis,
+        status: 'Active',
+        date: new Date(),
+        digitalSignature: {
+          status: 'Doctor Confirmed (PKI DSC Integration-Ready)',
+          documentHash: rxHash,
+          signedAt: new Date()
+        }
+      },
+      { upsert: true, new: true }
+    );
+    console.log('Sample digital prescription seeded for demo patient.');
 
     console.log('Database seeding successfully completed!');
     process.exit(0);

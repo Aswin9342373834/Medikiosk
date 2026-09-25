@@ -54,3 +54,5 @@ Thumbs.db
 # OCR models
 *.traineddata
 backend/*.traineddata
+
+*.zip
