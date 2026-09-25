@@ -22,6 +22,7 @@ const aiRoutes = require('./routes/ai');
 const departmentRoutes = require('./routes/departments');
 const opdRoutes = require('./routes/opd');
 const consentRoutes = require('./routes/consent');
+const pharmacyRoutes = require('./routes/pharmacies');
 
 const app = express();
 
@@ -37,6 +38,7 @@ const allowedOrigins = [
   'http://localhost:3001',
   'http://127.0.0.1:3001',
   'https://medikiosk-nn87.vercel.app',
+  'https://medikiosk-mauve-tau.vercel.app',
   ...envOrigins
 ].filter(Boolean);
 
@@ -142,6 +144,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/opd', opdRoutes);
 app.use('/api/consent', consentRoutes);
+app.use('/api/pharmacies', pharmacyRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -31,6 +31,22 @@ interface RequestOptions {
 
 const api = {
   async request(endpoint: string, options: RequestOptions = {}) {
+    // Prevent silent fallback to relative /api on production if NEXT_PUBLIC_API_URL is missing
+    if (typeof window !== 'undefined') {
+      const { hostname } = window.location;
+      const isProduction = hostname !== 'localhost' && hostname !== '127.0.0.1';
+      const hasConfiguredApiUrl = Boolean(process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== '');
+
+      if (isProduction && !hasConfiguredApiUrl) {
+        const configError: any = new Error(
+          'Backend URL Not Configured: NEXT_PUBLIC_API_URL is missing in Vercel. Please go to Vercel Project Settings > Environment Variables, add NEXT_PUBLIC_API_URL with your deployed backend URL (e.g. https://medikiosk-backend.onrender.com), and redeploy.'
+        );
+        configError.code = 'CONFIG_MISSING';
+        configError.isConfigError = true;
+        throw configError;
+      }
+    }
+
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -235,6 +251,30 @@ const api = {
 
   async getPatientPrescriptions(patientId: string) {
     return this.request(`/prescriptions/patient/${patientId}`);
+  },
+
+  async getPrescriptionById(id: string) {
+    return this.request(`/prescriptions/${id}`);
+  },
+
+  async getNearbyPharmacies(params: {
+    latitude: number;
+    longitude: number;
+    radius?: number;
+    prescriptionId?: string;
+    medicine?: string;
+    strength?: string;
+    dosageForm?: string;
+  }) {
+    const query = new URLSearchParams();
+    query.append('latitude', params.latitude.toString());
+    query.append('longitude', params.longitude.toString());
+    if (params.radius) query.append('radius', params.radius.toString());
+    if (params.prescriptionId) query.append('prescriptionId', params.prescriptionId);
+    if (params.medicine) query.append('medicine', params.medicine);
+    if (params.strength) query.append('strength', params.strength);
+    if (params.dosageForm) query.append('dosageForm', params.dosageForm);
+    return this.request(`/pharmacies/nearby?${query.toString()}`);
   },
 
   async startConsultation(patientId: string, department?: string) {
